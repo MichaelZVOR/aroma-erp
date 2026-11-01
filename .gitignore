@@ -1,0 +1,43 @@
+# Local business data and private files
+/data/
+/static/images/
+/seed.private.json
+/calculator-seed.private.json
+*.sqlite
+*.sqlite3
+*.sqlite*
+*.db
+*.db-*
+*.csv
+*.xlsx
+*.xls
+*.docx
+*.zip
+*.bak
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+# Generated runtime/build files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+.next/
+.next-release/
+out/
+/web/
+*.exe
+*.dll
+# Local browser and IDE state
+competitor-browser/
+.playwright/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
