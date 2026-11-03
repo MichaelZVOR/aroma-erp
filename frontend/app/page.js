@@ -223,9 +223,8 @@ function ERP() {
 function Catalog(props) {
   const {s,page,editProduct,receive}=props;
   const fixed={bottles:'bottle',liquid:'liquid',decants:'decant',import:'import'}[page];
-  const [kind,setKind]=useState(fixed||'all'),[search,setSearch]=useState(''),[questionOnly,setQuestionOnly]=useState(false);
-  const questionCount=s.products.filter(p=>p.name.includes('?')).length;
-  const rows=s.products.filter(p=>(kind==='all'||p.kind===kind)&&(!questionOnly||p.name.includes('?'))&&searchMatch(p,search));
+  const [kind,setKind]=useState(fixed||'all'),[search,setSearch]=useState('');
+  const rows=s.products.filter(p=>(kind==='all'||p.kind===kind)&&searchMatch(p,search));
   const columns=[
     {title:'Фото',key:'photo',width:78,render:(_,p)=><Photo p={p}/>},
     {title:'Код',dataIndex:'code',width:115,render:v=><span className="code">{v}</span>},
@@ -236,8 +235,8 @@ function Catalog(props) {
   ];
   return <><Heading title="Товары" sub="Карточки товаров. Фактическое наличие смотрите в остатках.">{!['liquid','decant','import'].includes(kind)&&<Button type="primary" icon={<PlusOutlined/>} onClick={()=>editProduct(null,kind==='all'?'bottle':kind)}>Создать карточку</Button>}</Heading>
     <Tabs activeKey={kind} onChange={v=>{setKind(v);setSearch('')}} items={[{key:'all',label:'Все товары'},...Object.entries(K).map(([key,label])=>({key,label})),{key:'import',label:'Импорт CSV'}]}/>
-    {kind==='import'?<ImportCSV {...props} embedded/>:<Card><div className="toolbar"><Input.Search className="search-field" aria-label="Поиск по названию или коду" placeholder="Поиск по названию или коду" allowClear value={search} onChange={e=>setSearch(e.target.value)}/><Checkbox checked={questionOnly} onChange={e=>setQuestionOnly(e.target.checked)}>Названия с ? ({questionCount})</Checkbox><span className="photo-count">Найдено {rows.length} · с фото {rows.filter(p=>p.image).length}</span></div>
-      <PagedTable rows={rows} columns={columns.map(col=>({...col,onCell:p=>({style:p.name.includes('?')?{background:'#fff7d6'}:{}})}))} resetKey={kind+'|'+search+'|'+questionOnly}/>
+    {kind==='import'?<ImportCSV {...props} embedded/>:<Card><div className="toolbar"><Input.Search className="search-field" aria-label="Поиск по названию или коду" placeholder="Поиск по названию или коду" allowClear value={search} onChange={e=>setSearch(e.target.value)}/><span className="photo-count">Найдено {rows.length} · с фото {rows.filter(p=>p.image).length}</span></div>
+      <PagedTable rows={rows} columns={columns} resetKey={kind+'|'+search}/>
     </Card>}</>;
 }
 
