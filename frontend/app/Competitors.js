@@ -1,5 +1,6 @@
 'use client';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
+import {useLegacyDiscard,useLegacyNavigationLock} from './NavigationLock';
 import {Alert,App,Button,Card,Checkbox,Collapse,Descriptions,Empty,Form,Input,Modal,Select,Space,Spin,Table,Tag,Typography} from 'antd';
 
 const fmt=v=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(Number(v));
@@ -13,6 +14,10 @@ export default function Competitors({s}){
  const {message}=App.useApp();const [data,setData]=useState(null),[name,setName]=useState('AMOUAGE — Existence (edp)'),[results,setResults]=useState({}),[enabled,setEnabled]=useState(['allure','odekolon','randewoo','duhi']);
  const [busy,setBusy]=useState(false),[progress,setProgress]=useState({}),[error,setError]=useState(''),[linksOpen,setLinksOpen]=useState(false),[linksBusy,setLinksBusy]=useState(false),[form]=Form.useForm();
  const [matching,setMatching]=useState(null),[searchBusy,setSearchBusy]=useState(false),[confirmBusy,setConfirmBusy]=useState(false);
+ const [linksDirty,setLinksDirty]=useState(false);
+ const confirmDiscard=useLegacyDiscard();
+ const releaseLinks=useLegacyNavigationLock('competitors', linksOpen&&linksDirty);
+ const closeLinks=()=>{releaseLinks();setLinksOpen(false);};
  const [manualVolumes,setManualVolumes]=useState([]);
  const [includeSamples,setIncludeSamples]=useState(false),[ownSelection,setOwnSelection]=useState({});const running=useRef(false),currentName=useRef(name);
  const api=useCallback(async(path,body)=>{
@@ -35,8 +40,8 @@ export default function Competitors({s}){
  };
  const result=site=>results[key+'|'+site];
  const links=data?.links.filter(x=>x.fragrance===key)||[];
- const openLinks=()=>{form.resetFields();form.setFieldsValue(Object.fromEntries(data.sites.map(x=>[x.id,links.find(l=>l.site===x.id)?.url||''])));setLinksOpen(true);};
- const saveLinks=async values=>{setLinksBusy(true);try{for(const site of data.sites){const url=(values[site.id]||'').trim();if(url)await api('link',{name,site:site.id,url});}await load();setLinksOpen(false);message.success('Ссылки сохранены для этого аромата');}catch(e){message.error(e.message);}finally{setLinksBusy(false);}};
+ const openLinks=()=>{setLinksDirty(false);form.resetFields();form.setFieldsValue(Object.fromEntries(data.sites.map(x=>[x.id,links.find(l=>l.site===x.id)?.url||''])));setLinksOpen(true);};
+ const saveLinks=async values=>{setLinksBusy(true);try{for(const site of data.sites){const url=(values[site.id]||'').trim();if(url)await api('link',{name,site:site.id,url});}await load();closeLinks();message.success('Ссылки сохранены для этого аромата');}catch(e){message.error(e.message);}finally{setLinksBusy(false);}};
  const searchCards=async(site,useSaved=true)=>{
   if(busy||searchBusy||confirmBusy)return;
   const stored=result(site)?.candidates;
@@ -129,7 +134,7 @@ export default function Competitors({s}){
    {detailTable(matchedDetails,volumes.length?'Предложений этих объёмов пока нет. Проверьте цены и статусы магазинов.':'Выберите товар из базы или укажите объёмы для сравнения')}
   </Card>
   <Collapse items={[{key:'other-volumes',label:'Остальные найденные предложения · '+otherDetails.length,children:<><p className="help-text">Другие объёмы сохранены здесь и не участвуют в подборке по вашим объёмам.</p>{detailTable(otherDetails,'Других предложений нет')}</>}]}/>
-  <Modal title={'Выбор карточки · '+(data.sites.find(s=>s.id===matching?.site)?.name||'')} open={!!matching} onCancel={()=>!searchBusy&&!confirmBusy&&setMatching(null)} footer={<Space><Button disabled={searchBusy||confirmBusy} onClick={()=>{setMatching(null);openLinks();}}>Указать ссылку вручную</Button><Button disabled={searchBusy||confirmBusy} onClick={()=>searchCards(matching.site,false)}>Повторить поиск</Button></Space>} width={800} closable={!searchBusy&&!confirmBusy} maskClosable={!searchBusy&&!confirmBusy}>
+  <Modal title={'Выбор карточки · '+(data.sites.find(s=>s.id===matching?.site)?.name||'')} open={!!matching} onCancel={()=>!searchBusy&&!confirmBusy&&setMatching(null)} footer={<Space><Button disabled={searchBusy||confirmBusy} onClick={()=>{setMatching(null);openLinks();}}>Указать ссылку вручную</Button><Button disabled={searchBusy||confirmBusy} onClick={()=>searchCards(matching.site,false)}>Повторить поиск</Button></Space>} width={800} closable={!searchBusy&&!confirmBusy} maskClosable={false} keyboard={false}>
    <p><strong>{matching?.name}</strong></p>
    {searchBusy?<Spin tip="Ищем карточки магазина"/>:<>
     {matching?.error&&<Alert type={['blocked','network_error'].includes(matching.status)?'error':'warning'} showIcon title={statusLabels[matching.status]||'Не удалось выполнить поиск'} description={matching.error}/>}
@@ -137,7 +142,7 @@ export default function Competitors({s}){
     {!matching?.error&&!matching?.candidates?.length&&<Empty description="Совпадений не найдено. Можно указать точную ссылку вручную."/>}
     <Space orientation="vertical" style={{width:'100%'}}>{matching?.candidates?.map(candidate=><Card key={candidate.url} size="small">
      <div style={{display:'flex',gap:16,alignItems:'flex-start'}}>
-      {candidate.image?<img src={candidate.image} alt="" referrerPolicy="no-referrer" style={{width:76,height:96,objectFit:'contain'}}/>:<div style={{width:76,fontSize:12,color:'#7c899b'}}>Без фото в поиске</div>}
+      {candidate.image?<img src={candidate.image} alt="" referrerPolicy="no-referrer" style={{width:76,height:96,objectFit:'contain'}}/>:<div className="help-text" style={{width:76}}>Без фото в поиске</div>}
       <div style={{flex:1}}><strong>{candidate.title}</strong>{candidate.variant_warning&&<div><Tag color="orange">Другая версия: {candidate.variant_warning}</Tag></div>}<p className="help-text">Концентрация в поиске: {candidate.concentrations?.length?candidate.concentrations.join(', '):'не указана — проверяется в предложениях'}{candidate.brand_found?' · Бренд найден':' · Сверьте бренд на странице'}</p>
        <p><a href={candidate.url} target="_blank" rel="noopener noreferrer">Открыть карточку магазина</a></p>
        <Button type="primary" loading={confirmBusy} disabled={searchBusy} onClick={()=>confirmCard(candidate)}>Это нужный аромат</Button>
@@ -147,9 +152,9 @@ export default function Competitors({s}){
     <p className="help-text">Подтверждение связывает выбранную страницу с вашим ароматом. Цены попадут в сравнение только после проверки концентрации, объёма и типа предложения.</p>
    </>}
   </Modal>
-  <Modal title={'Ссылки для '+name} open={linksOpen} onCancel={()=>!linksBusy&&setLinksOpen(false)} onOk={()=>form.submit()} okText="Сохранить ссылки" cancelText="Отмена" confirmLoading={linksBusy} width={750}>
+  <Modal title={'Ссылки для '+name} open={linksOpen} maskClosable={false} keyboard={false} onCancel={()=>!linksBusy&&confirmDiscard(linksDirty,closeLinks,true)} onOk={()=>form.submit()} okText="Сохранить ссылки" cancelButtonProps={{style:{display:"none"}}} confirmLoading={linksBusy} width={750}>
    <p>Укажите страницу именно этого аромата. Объёмы программа получит из вариантов товара. Разрешены только магазины из списка. Для источников с ограниченным доступом автоматическое получение цен пока не подключено.</p>
-   <Form form={form} layout="vertical" onFinish={saveLinks} disabled={linksBusy}>{data.sites.map(site=><Form.Item key={site.id} label={site.name} name={site.id}><Input disabled={site.mode==='restricted'} placeholder={site.mode==='restricted'?'Автоматическое получение цен пока не подключено':'https://'+site.host+'/...'} maxLength={1500}/></Form.Item>)}</Form>
+   <Form form={form} layout="vertical" onFinish={saveLinks} onValuesChange={()=>setLinksDirty(true)} disabled={linksBusy}>{data.sites.map(site=><Form.Item key={site.id} label={site.name} name={site.id}><Input disabled={site.mode==='restricted'} placeholder={site.mode==='restricted'?'Автоматическое получение цен пока не подключено':'https://'+site.host+'/...'} maxLength={1500}/></Form.Item>)}</Form>
   </Modal>
  </Space>;
 }

@@ -4,18 +4,20 @@ import CostCalculator from './CostCalculator';
 import Sales from './Sales';
 import Competitors from './Competitors';
 import WarehouseSetup from './WarehouseSetup';
-import ProductCardFields from './ProductCardFields';
+import {hasLegacyChanges, leaveLegacyPage, useLegacyDiscard, useLegacyNavigationLock} from './NavigationLock';
+import categoryDefinitions from './product-categories.json';
+import CreateProductFields, { catalogCategory, categoryKind, defaultCategory } from './CreateProductFields';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, App, Button, Card, Checkbox, ConfigProvider, Descriptions, Divider,
   Empty, Form, Image, Input, InputNumber, Layout, Menu, Modal, Select,
-  Space, Spin, Statistic, Table, Tabs, Tag, Typography,
+  Space, Spin, Statistic, Table, Tabs, Tag, Tooltip, Typography, theme,
 } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import {
   AppstoreOutlined, DatabaseOutlined, ExperimentOutlined, FileTextOutlined,
   HomeOutlined, ImportOutlined, ReloadOutlined, SaveOutlined, SettingOutlined,
-  ShoppingOutlined, CalculatorOutlined, PlusOutlined,
+  ShoppingOutlined, CalculatorOutlined, PlusOutlined, ExportOutlined, DeleteOutlined, CloseOutlined,
 } from '@ant-design/icons';
 
 const K = { bottle:'Полноразмерные флаконы', liquid:'Парфюм в мл', decant:'Готовые распивы', atom:'Атомайзеры', label:'Наклейки', other:'Прочие материалы' };
@@ -33,7 +35,7 @@ const names = { goods:'Товары',warehouse:'Подготовка склад�
 const navItem=(key,label)=>{const icons={home:HomeOutlined,sales:ShoppingOutlined,competitors:ShoppingOutlined,goods:DatabaseOutlined,bottles:ShoppingOutlined,liquid:ExperimentOutlined,decants:AppstoreOutlined,import:ImportOutlined,warehouse:SettingOutlined,receipts:ShoppingOutlined,stock:DatabaseOutlined,documents:FileTextOutlined,production:ExperimentOutlined,stockcalc:ExperimentOutlined,calc:CalculatorOutlined,settings:SettingOutlined};const Icon=icons[key];return {key,icon:<Icon/>,label:label||names[key]};};
 const menuItems = [navItem('home'),navItem('sales'),
  navItem('goods'),
- {key:'warehouse-menu',icon:<DatabaseOutlined/>,label:'Склад',children:[navItem('warehouse'),navItem('stock'),navItem('receipts','Поступления'),navItem('documents')]},
+ navItem('warehouse','Склад'),
  navItem('production'),navItem('stockcalc'),navItem('calc'),navItem('competitors'),navItem('settings'),
 ];
 
@@ -60,33 +62,66 @@ function Heading({title,sub,children}) {
 
 // Filtering happens before pagination. Search/category changes reset the page,
 // while stock refreshes preserve it and clamp it to the remaining page count.
-function PagedTable({rows,columns,resetKey='',rowKey='id',...props}) {
+function PagedTable({rows,columns,resetKey='',rowKey='id',onPageChange,...props}) {
   const [current,setCurrent]=useState(1);
   const [pageSize,setPageSize]=useState(25);
   useEffect(()=>{try{const n=Number(localStorage.getItem('aroma.pageSize'));if([10,25,50,100].includes(n))setPageSize(n)}catch{}},[]);
   useEffect(()=>setCurrent(1),[resetKey]);
   const safeCurrent=Math.min(current,Math.max(1,Math.ceil(rows.length/pageSize)));
-  const changeSize=size=>{setCurrent(1);setPageSize(size);try{localStorage.setItem('aroma.pageSize',String(size))}catch{}};
+  const changeSize=size=>{onPageChange?.();setCurrent(1);setPageSize(size);try{localStorage.setItem('aroma.pageSize',String(size))}catch{}};
   return <><Space style={{marginBottom:8}}><Typography.Text type="secondary">Строк на странице</Typography.Text><Select aria-label="Строк на странице" value={pageSize} onChange={changeSize} options={[10,25,50,100].map(value=>({value,label:String(value)}))} style={{width:90}}/></Space><Table {...props} rowKey={rowKey} dataSource={rows} columns={columns} scroll={{x:'max-content'}}
     pagination={{
       current:safeCurrent,pageSize,total:rows.length,pageSizeOptions:[10,25,50,100],
       showSizeChanger:false,showQuickJumper:true,position:['topRight','bottomRight'],
       showTotal:(total,range)=>`${total?range[0]:0}–${range[1]} из ${total}`,
-      onChange:(p,size)=>{setCurrent(size!==pageSize?1:p);setPageSize(size);try{localStorage.setItem('aroma.pageSize',String(size))}catch{}},
+      onChange:(p,size)=>{if(p!==safeCurrent||size!==pageSize)onPageChange?.();setCurrent(size!==pageSize?1:p);setPageSize(size);try{localStorage.setItem('aroma.pageSize',String(size))}catch{}},
     }}/></>;
 }
 
 export default function Page() {
-  return <ConfigProvider locale={ruRU} theme={{token:{colorPrimary:'#4664dc',borderRadius:8,fontFamily:'Arial, "Segoe UI", sans-serif',colorBgLayout:'#f4f6fa'},components:{Menu:{darkItemBg:'#1e2b40',darkItemSelectedBg:'#4664dc'},Table:{cellPaddingBlock:11}}}}>
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    function receiveTheme(event) {
+      if (window.parent === window || event.source !== window.parent ||
+          event.origin !== 'http://127.0.0.1:8791' || event.data?.type !== 'aroma:theme' ||
+          typeof event.data.dark !== 'boolean') return;
+      setDark(event.data.dark);
+    }
+    window.addEventListener('message', receiveTheme);
+    if (window.parent !== window) {
+      window.parent.postMessage({type:'aroma:theme-ready'}, 'http://127.0.0.1:8791');
+    }
+    return () => window.removeEventListener('message', receiveTheme);
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.aromaTheme = dark ? 'dark' : 'light';
+  }, [dark]);
+  return <ConfigProvider locale={ruRU} theme={{
+    algorithm: dark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    token: {colorPrimary:'#4664dc', borderRadius:8, fontFamily:'Arial, "Segoe UI", sans-serif',
+      colorBgLayout: dark ? '#141414' : '#f4f6fa'},
+    components: {Menu:{darkItemBg:'#1e2b40', darkItemSelectedBg:'#4664dc'}, Table:{cellPaddingBlock:11}},
+  }}>
     <App><ERP/></App>
   </ConfigProvider>;
 }
 
 function ERP() {
   const {message}=App.useApp();
+  const confirmDiscard=useLegacyDiscard();
   const [s,setS]=useState(null),[error,setError]=useState(''),[page,setPage]=useState('home'),[busy,setBusy]=useState(false);
   const [dialog,setDialog]=useState(null),[form]=Form.useForm();
-  const pending=useRef(false);
+  const pending=useRef(false), saveNext=useRef(false);
+  const [photoBusy,setPhotoBusy]=useState(false);
+  const productForm = dialog?.type === "product";
+  const creatingProduct = productForm && !dialog.product;
+  const [operationChanged,setOperationChanged]=useState(false);
+  const markOperationChanged=()=>setOperationChanged(true);
+  const releaseOperation=useLegacyNavigationLock('operation', !!dialog && operationChanged);
+  const dismissOperation=()=>{releaseOperation();setDialog(null);};
+  const closeOperation=()=>{
+    if(!busy&&!pending.current&&!photoBusy)confirmDiscard(operationChanged,dismissOperation,true);
+  };
   const products=s?.products||[],lots=s?.lots||[],docs=s?.documents||[];
   const product=id=>products.find(p=>p.id===id);
   const activeLots=kind=>lots.filter(l=>l.status==='active'&&l.remaining>0&&(!kind||product(l.product_id)?.kind===kind));
@@ -98,13 +133,32 @@ function ERP() {
     setS(next);setError('');return next;
   },[]);
   useEffect(()=>{refresh().catch(e=>setError(e.message));const sync=()=>setPage(names[location.hash.slice(1)]?location.hash.slice(1):'home');sync();window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync)},[refresh]);
-  const go=p=>{location.hash=p;setPage(p)};
+  const go=p=>{
+    const embedded=new URLSearchParams(location.search).get('embed')==='1'&&window.parent!==window;
+    if(embedded){window.parent.postMessage({type:'aroma:navigate',page:p},'http://127.0.0.1:8791');return;}
+    const routes={home:'/overview',sales:'/sales',goods:'/products',catalog:'/products',warehouse:'/stock',receipts:'/stock?tab=receipts',stock:'/stock?tab=stock',inventory:'/stock?tab=inventory',documents:'/documents',production:'/production',stockcalc:'/production-quote',calc:'/calculator',competitors:'/competitors',settings:'/settings'};
+    if(!routes[p]&&p===page)return;
+    confirmDiscard(hasLegacyChanges(),()=>{
+      if(routes[p]){leaveLegacyPage('http://127.0.0.1:8791'+routes[p]);return;}
+      location.hash=p;setPage(p);
+    });
+  };
   const api=async(path,data)=>{
     const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Aroma-Token':s.token},body:JSON.stringify(data)});
     const result=await response.json();if(!response.ok)throw Error(result.error||'Не удалось сохранить');return result;
   };
-  const show=(type,values={},extra={})=>{form.resetFields();form.setFieldsValue(values);setDialog({type,key:crypto.randomUUID(),...extra})};
-  const editProduct=(p,kind='bottle')=>show('product',{kind:p?.kind||kind,code:p?.code||'',name:p?.name||'',capacity:p?.capacity?p.capacity/1000:null,sale:p?.sale==null?null:p.sale/100,note:p?.note||'',profile:{...(p?.profile||{}),purchase_price:p?.profile?.purchase_price==null?null:p.profile.purchase_price/100}},{product:p});
+  const show=(type,values={},extra={})=>{setOperationChanged(false);form.resetFields();form.setFieldsValue(values);setDialog({type,key:crypto.randomUUID(),...extra})};
+  const editProduct=(p,category='bottle')=>{
+    const previous=p?.profile||{};
+    const categoryName=previous.category||defaultCategory(p?catalogCategory(p):category)||'Прочие материалы';
+    show('product',{kind:p?.kind||categoryKind(categoryName,products),code:p?.code||'',name:p?.name||'',
+      capacity:p?.capacity?p.capacity/1000:null,sale:p?.sale==null?null:p.sale/100,note:p?.note||'',
+      profile:{...(!p?{payment_subject:'1',unit_code:'796',shelf_unit:'hour',mark_type:'0'}:previous),
+        category:categoryName,good_type:previous.good_type==='bundle'?'bundle':'product',
+        purchase_price:previous.purchase_price==null?null:previous.purchase_price/100,
+        creation_details:{barcodes:previous.barcodes||[],related:previous.related_products||[],
+          kpi:previous.kpi==null?null:Number(previous.kpi)}}},{product:p,initialCategory:categoryName});
+  };
   const receive=(id)=>{const p=product(id);show('receipt',{product:id,qty:1,capacity:p?.capacity?p.capacity/1000:null,extra:0})};
   const openBottle=id=>{
     const available=activeLots('bottle');if(!available.length){message.info('Сначала внесите поступление полноразмерного флакона');return receive()}
@@ -116,14 +170,27 @@ function ERP() {
   };
   const openDoc=id=>setDialog({type:'document',document:docs.find(d=>d.id===id)});
   const submit=async values=>{
-    if(pending.current)return;
+    if(pending.current || (productForm && photoBusy))return;
     pending.current=true;setBusy(true);
     try{
       let payload={...values,key:dialog.key},path='/api/'+dialog.type;
       if(dialog.type==='product')payload={...values,id:dialog.product?.id||null,kind:dialog.product?.kind||values.kind,profile_revision:dialog.product?.profile?.revision||0};
+      if(productForm){
+        payload.profile.creation_details ??= {};
+        const requestedKind=categoryKind(payload.profile.category,products);
+        if(creatingProduct)payload.kind=requestedKind;
+        else if(payload.profile.category!==dialog.initialCategory && requestedKind!==payload.kind)
+          throw Error('Выберите категорию с тем же видом учёта, чтобы сохранить историю товара.');
+        if(!payload.code?.trim()) payload.code="T-"+dialog.key;
+      }
       if(dialog.type==='reverse')payload.document=dialog.document.id;
       if(dialog.type==='produce')payload={...dialog.payload,...values,key:dialog.key,fingerprint:dialog.quote.fingerprint};
-      const result=await api(path,payload);setDialog(null);
+      const result=await api(path,payload);
+      if(creatingProduct && saveNext.current){
+        releaseOperation();
+        show('product',{kind:payload.kind,profile:{category:values.profile?.category,good_type:values.profile?.good_type,payment_subject:'1',unit_code:'796',shelf_unit:'hour',mark_type:'0'}},{product:null});
+        requestAnimationFrame(()=>document.querySelector('.create-product-modal .ant-modal-body')?.scrollTo({top:0}));
+      } else dismissOperation();
       message.success(dialog.type==='product'?'Карточка сохранена':`Документ № ${result.id} сохранён`);
       try{await refresh()}catch(e){setError('Операция сохранена, но экран не обновился. Нажмите «Обновить».')}
     }catch(e){message.error(e.message)}finally{setBusy(false);pending.current=false}
@@ -181,7 +248,7 @@ function ERP() {
   const noteField=<Form.Item label="Заметка" name="note" className="span-all"><Input.TextArea rows={2} maxLength={1500}/></Form.Item>;
   const numberField=(name,label,required=false,props={})=><Form.Item key={name} label={label} name={name} rules={required?[{required:true,message:'Заполните поле'}]:[]}><InputNumber min={0} controls={false} {...props}/></Form.Item>;
   let fields=null;
-  if(dialog?.type==='product')fields=<ProductCardFields product={dialog.product} kinds={K} numberField={numberField} noteField={noteField}/>;
+  if(productForm) fields=<CreateProductFields product={dialog.product} key={dialog.key} products={products} form={form} api={api} disabled={busy||photoBusy} onPhotoBusy={setPhotoBusy} onChange={markOperationChanged}/>;
   if(dialog?.type==='receipt')fields=<>
     <Form.Item label="Товар" name="product" className="span-all" rules={[{required:true,message:'Выберите товар'}]}><Select showSearch optionFilterProp="label" onChange={id=>{const p=product(id);form.setFieldValue('capacity',p?.capacity?p.capacity/1000:null)}} options={products.filter(p=>p.kind!=='decant').map(p=>({value:p.id,label:`${p.code} · ${cleanName(p.name)}`}))}/></Form.Item>
     {numberField('qty',`Количество, ${units(selectedProduct)}`,true,{min:selectedProduct?.kind==='liquid'?0.001:1,precision:selectedProduct?.kind==='liquid'?3:0})}
@@ -213,31 +280,94 @@ function ERP() {
       <Layout.Content className="erp-content"><Select className="mobile-nav" aria-label="Раздел программы" value={['catalog','bottles','liquid','decants','import'].includes(page)?'goods':page} onChange={go} options={Object.entries(names).filter(([key])=>!['catalog','bottles','liquid','decants','import'].includes(key)).map(([value,label])=>({value,label}))}/>{error&&<Alert type="error" showIcon title={error} style={{marginBottom:20}}/>}{s?content:<div style={{padding:80,textAlign:'center'}}><Spin size="large"/></div>}</Layout.Content>
       <Layout.Footer className="erp-footer"><span>Данные хранятся на вашем ПК</span><span>{s?.data_folder}</span></Layout.Footer>
     </Layout>
-    <Modal open={!!dialog&&dialog.type!=='document'} title={titles[dialog?.type]} onCancel={()=>{if(!busy)setDialog(null)}} onOk={()=>form.submit()} confirmLoading={busy} okText={dialog?.type==='product'?'Сохранить карточку':'Провести'} cancelText="Отмена" destroyOnHidden width={dialog?.type==='product'?1000:720} maskClosable={!busy} keyboard={!busy} closable={!busy}>
-      <Form form={form} layout="vertical" onFinish={submit} disabled={busy}><div className="form-grid">{fields}</div></Form>
+    <Modal open={!!dialog&&dialog.type!=='document'} className={productForm?"create-product-modal":undefined}
+      style={productForm?{top:16}:undefined}
+      styles={productForm?{body:{maxHeight:"calc(100dvh - 125px)",overflowY:"auto",paddingRight:8}}:undefined}
+      footer={productForm?null:undefined}
+      title={productForm?<div className="create-product-actions">
+        <span>{creatingProduct?'Создание товара':'Карточка товара'}</span>
+        <Space wrap>
+          {creatingProduct&&<Button disabled={busy||photoBusy} color="primary" variant="outlined" onClick={()=>{saveNext.current=true;form.submit()}}>Сохранить и создать следующий</Button>}
+          <Button type="primary" loading={busy} disabled={photoBusy} onClick={()=>{saveNext.current=false;form.submit()}}>Сохранить</Button>
+          <Button type="text" icon={<CloseOutlined/>} aria-label="Закрыть карточку" title="Закрыть карточку"
+            disabled={busy||photoBusy} onClick={closeOperation}/>
+        </Space>
+      </div>:titles[dialog?.type]} onCancel={closeOperation} onOk={()=>form.submit()} confirmLoading={busy} okText={dialog?.type==='product'?'Сохранить карточку':'Провести'} cancelButtonProps={{style:{display:"none"}}} destroyOnHidden width={dialog?.type==='product'?1000:720} maskClosable={false} keyboard={false} closable={!productForm&&!busy}>
+      <Form form={form} layout="vertical" onFinish={submit} onValuesChange={markOperationChanged} disabled={busy} size={productForm?"large":undefined} onKeyDown={productForm?event=>{if(event.key==="Enter"&&event.target.tagName==="INPUT"&&event.target.getAttribute("role")!=="combobox")event.preventDefault()}:undefined}><div className={productForm?undefined:"form-grid"}>{fields}</div></Form>
     </Modal>
     {dialog?.type==='document'&&<DocumentModal {...common} d={dialog.document} onClose={()=>setDialog(null)} onReverse={()=>show('reverse',{}, {document:dialog.document})}/>}
   </Layout>;
 }
 
 function Catalog(props) {
-  const {s,page,editProduct,receive}=props;
+  const {s,page,editProduct,receive,api,refresh,message}=props;
+  const {modal}=App.useApp();
   const fixed={bottles:'bottle',liquid:'liquid',decants:'decant',import:'import'}[page];
-  const [kind,setKind]=useState(fixed||'all'),[search,setSearch]=useState('');
-  const rows=s.products.filter(p=>(kind==='all'||p.kind===kind)&&searchMatch(p,search));
+  const requestedCategory=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('category'):null;
+  const kind=fixed||(['all',...Object.keys(K)].includes(requestedCategory)||defaultCategory(requestedCategory)?requestedCategory:'all');
+  const [search,setSearch]=useState(''),[selected,setSelected]=useState([]),[importing,setImporting]=useState(false);
+  const category=defaultCategory(kind);
+  const categoryRows=s.products.filter(p=>!p.profile?.archived_from_catalog&&
+    (kind==='all'||(['liquid','label','other'].includes(kind)?p.kind===kind:catalogCategory(p)===kind)));
+  const rows=categoryRows.filter(p=>searchMatch(p,search));
   const columns=[
-    {title:'Фото',key:'photo',width:78,render:(_,p)=><Photo p={p}/>},
+    {title:'Фото',key:'photo',width:78,render:(_,p)=>p.image?<Image preview={false} src={p.image} alt="" width={48} height={60} style={{objectFit:'contain'}}/>:<span className="photo-empty">—</span>},
     {title:'Код',dataIndex:'code',width:115,render:v=><span className="code">{v}</span>},
     {title:'Наименование',dataIndex:'name',render:(_,p)=><ProductName p={p}/>},
     {title:'Объём',dataIndex:'capacity',render:v=>v?`${fmt(v/1000)} мл`:'—'},
-    {title:'Цена продажи',dataIndex:'sale',render:money},
-    {title:'Действия',key:'actions',render:(_,p)=><Space><Button onClick={()=>editProduct(p)}>Изменить</Button>{p.kind!=='decant'&&<Button onClick={()=>receive(p.id)}>Поступление</Button>}</Space>},
+    {title:'Цена закупки',key:'purchase',width:140,align:'right',
+      render:(_,p)=><span style={{whiteSpace:'nowrap'}}>{money(p.profile?.purchase_price)}</span>},
+    {title:'Цена продажи',dataIndex:'sale',width:140,align:'right',
+      render:value=><span style={{whiteSpace:'nowrap'}}>{money(value)}</span>},
+    {title:'Действия',key:'actions',render:(_,p)=>p.kind!=='decant'&&<Button onClick={event=>{event.stopPropagation();receive(p.id)}}>Поступление</Button>},
   ];
-  return <><Heading title="Товары" sub="Карточки товаров. Фактическое наличие смотрите в остатках.">{!['liquid','decant','import'].includes(kind)&&<Button type="primary" icon={<PlusOutlined/>} onClick={()=>editProduct(null,kind==='all'?'bottle':kind)}>Создать карточку</Button>}</Heading>
-    <Tabs activeKey={kind} onChange={v=>{setKind(v);setSearch('')}} items={[{key:'all',label:'Все товары'},...Object.entries(K).map(([key,label])=>({key,label})),{key:'import',label:'Импорт CSV'}]}/>
-    {kind==='import'?<ImportCSV {...props} embedded/>:<Card><div className="toolbar"><Input.Search className="search-field" aria-label="Поиск по названию или коду" placeholder="Поиск по названию или коду" allowClear value={search} onChange={e=>setSearch(e.target.value)}/><span className="photo-count">Найдено {rows.length} · с фото {rows.filter(p=>p.image).length}</span></div>
-      <PagedTable rows={rows} columns={columns} resetKey={kind+'|'+search}/>
-    </Card>}</>;
+  function exportCategory() {
+    const headers='ID;EXTERNAL_CODE;EXTERNAL_ID;NAME;FEATURES;PRICE;BARCODE;VENDOR_CODE;NDS;PAYMENT_SUBJECT;GROUP;UNIT_CODE;PURCHASE_PRICE;WEIGHTED;ALCOHOL;GTIN;MARK_TYPE;GROUPED;CONTAINER;MODIFIERS;INGREDIENTS;GOOD_TYPE;CONTRACTOR_INN;CONTRACTOR_ACTIVITY_TYPE;COUNTY_CODE;CUSTOM_DECLARATION;PLU_CODE;ORG_MEMBER_POINTS'.split(';');
+    const columns=new Set(headers);
+    const price=value=>value==null?'':(value/100).toFixed(2);
+    const records=categoryRows.map(p=>{
+      const details=p.profile||{}, raw=details.raw_bifit||{};
+      Object.keys(raw).forEach(key=>columns.add(key));
+      return {...raw,
+        ID:details.bifit_id??raw.ID??'', EXTERNAL_CODE:details.external_code??p.code,
+        NAME:p.name, GROUP:defaultCategory(catalogCategory(p))||details.category||K[p.kind],
+        PRICE:price(p.sale), PURCHASE_PRICE:price(details.purchase_price),
+        BARCODE:details.barcode??raw.BARCODE, VENDOR_CODE:details.vendor_code??raw.VENDOR_CODE,
+        NDS:details.vat??raw.NDS, PAYMENT_SUBJECT:details.payment_subject??raw.PAYMENT_SUBJECT,
+        UNIT_CODE:details.unit_code??raw.UNIT_CODE, WEIGHTED:details.weighted==null?raw.WEIGHTED:details.weighted?'1':'0',
+        GTIN:details.gtin??raw.GTIN, MARK_TYPE:details.mark_type??raw.MARK_TYPE, GROUPED:'0',
+        GOOD_TYPE:raw.GOOD_TYPE??'DEFAULT',
+      };
+    });
+    const ordered=[...columns];
+    download(csv([ordered,...records.map(record=>ordered.map(key=>record[key]))]),
+      (category||'Все товары')+'.csv');
+  }
+  function removeSelected() {
+    if(!selected.length)return;
+    modal.confirm({title:'Удалить выбранные товары из каталога?',content:`Выбрано товаров: ${selected.length}. Карточки с остатками защищены от удаления.`,
+      okText:'Удалить',cancelText:'Отмена',okButtonProps:{danger:true},
+      onOk:async()=>{try{await api('/api/product/archive',{ids:selected});setSelected([]);await refresh();message.success('Товары убраны из каталога')}
+        catch(error){message.error(error.message);throw error;}}});
+  }
+  return <section className="catalog-list-panel" aria-label="Список товаров">
+    <Heading title={kind==='all'?'Все товары':kind==='import'?'Импорт CSV':category||K[kind]} sub="Карточки товаров. Фактическое наличие смотрите в остатках."/>
+    {kind==='import'?<ImportCSV {...props} embedded/>:<Card>
+      <div className="catalog-actions" aria-label="Действия с товарами">
+        <Button type="primary" icon={<PlusOutlined/>} disabled={kind==='liquid'} onClick={()=>editProduct(null,kind==='all'?'bottle':kind)}>Создать товар</Button>
+        <Tooltip title="Импорт из CSV"><Button icon={<ImportOutlined/>} aria-label="Импорт из CSV" disabled={kind==='liquid'} onClick={()=>setImporting(true)}/></Tooltip>
+        <Tooltip title="Экспорт в CSV"><Button icon={<ExportOutlined/>} aria-label="Экспорт в CSV" onClick={exportCategory}/></Tooltip>
+        <Tooltip title="Удалить выбранные товары"><span><Button danger icon={<DeleteOutlined/>} aria-label="Удалить выбранные товары" disabled={!selected.length} onClick={removeSelected}/></span></Tooltip>
+      </div>
+      <div className="toolbar"><Input.Search className="search-field" aria-label="Поиск по названию или коду" placeholder="Поиск по названию или коду" allowClear value={search} onChange={e=>{setSearch(e.target.value);setSelected([])}}/><span className="photo-count">Найдено {rows.length} · с фото {rows.filter(p=>p.image).length}</span></div>
+      <PagedTable rows={rows} columns={columns} resetKey={kind+'|'+search} onPageChange={()=>window.scrollTo(0,0)}
+        rowSelection={{selectedRowKeys:selected,onChange:setSelected}}
+        rowClassName="catalog-product-row" onRow={p=>({tabIndex:0,onClick:event=>{
+          if(!event.target.closest('button,input,label,.ant-table-selection-column'))editProduct(p);
+        },onKeyDown:event=>{if(event.target===event.currentTarget&&['Enter',' '].includes(event.key)){event.preventDefault();editProduct(p)}}})}/>
+      {importing&&<ImportCSV {...props} embedded targetCategory={category} onClose={()=>setImporting(false)}/>}
+    </Card>}
+  </section>;
 }
 
 function Stock({s,product,lotLabel,openBottle,writeoff,openDoc,summaries}) {
@@ -284,6 +414,7 @@ function DocumentModal({s,product,d,onClose,onReverse}) {
 function Calculator({s,activeLots,lotLabel,api,show,go}) {
   const liquids=activeLots('liquid'),atoms=activeLots('atom'),labels=activeLots('label');
   const [liquid,setLiquid]=useState(liquids[0]?.id),[label,setLabel]=useState(null),[extra,setExtra]=useState(0),[chosen,setChosen]=useState({}),[sales,setSales]=useState({}),[quotes,setQuotes]=useState({}),[errors,setErrors]=useState({}),[loading,setLoading]=useState(false);
+  useLegacyNavigationLock('decant-quote',liquid!==liquids[0]?.id||!!label||!!extra||Object.keys(chosen).length>0||Object.keys(sales).length>0);
   const generation=useRef(0);
   const getAtom=n=>chosen[n]||atoms.find(l=>l.capacity>=n*1000)?.id;
   const payload=n=>({liquid,atom:getAtom(n),label:label||null,extra:extra??0,ml:n,sale:sales[n]??''});
@@ -322,37 +453,100 @@ function Calculator({s,activeLots,lotLabel,api,show,go}) {
 
 function Settings({s,api,refresh,message}) {
   const [form]=Form.useForm(),[busy,setBusy]=useState(false);
+  const [dirty,setDirty]=useState(false);
+  useLegacyNavigationLock('settings', dirty || busy);
   const initial={work:s.settings.work,work_mode:s.settings.work_mode,round_step:s.settings.round_step};
   s.settings.fees.forEach((f,i)=>initial['fee_'+i]=f.rate);
   volumes.forEach(n=>initial['mult_'+n]=s.settings.multipliers[n]);
   const save=async values=>{
     setBusy(true);
-    try{const settings=structuredClone(s.settings);settings.work=values.work;settings.work_mode=values.work_mode;settings.round_step=values.round_step;settings.fees.forEach((f,i)=>f.rate=values['fee_'+i]);volumes.forEach(n=>settings.multipliers[n]=values['mult_'+n]??null);await api('/api/settings',{settings});await refresh();message.success('Настройки сохранены')}catch(e){message.error(e.message)}finally{setBusy(false)}
+    try{const settings=structuredClone(s.settings);settings.work=values.work;settings.work_mode=values.work_mode;settings.round_step=values.round_step;settings.fees.forEach((f,i)=>f.rate=values['fee_'+i]);volumes.forEach(n=>settings.multipliers[n]=values['mult_'+n]??null);await api('/api/settings',{settings});await refresh();setDirty(false);message.success('Настройки сохранены')}catch(e){message.error(e.message)}finally{setBusy(false)}
   };
-  return <><Heading title="Расходы и цены" sub="Новые настройки применяются к следующим расчётам. Себестоимость проведённых выпусков сохранится."/><Card><Form form={form} initialValues={initial} layout="vertical" onFinish={save}>
+  return <><Heading title="Расходы и цены" sub="Новые настройки применяются к следующим расчётам. Себестоимость проведённых выпусков сохранится."/><Card><Form form={form} initialValues={initial} layout="vertical" onValuesChange={()=>setDirty(true)} onFinish={save}>
     <Typography.Title level={4}>Изготовление</Typography.Title><div className="settings-grid"><Form.Item name="work" label="Стоимость работы, ₽" rules={[{required:true}]}><InputNumber min={0}/></Form.Item><Form.Item name="work_mode" label="Расчёт работы"><Select options={[{value:'ml',label:'За 1 мл'},{value:'unit',label:'За штуку'}]}/></Form.Item><Form.Item name="round_step" label="Шаг округления цены, ₽" rules={[{required:true}]}><InputNumber min={0.01} precision={2}/></Form.Item></div>
     <Divider/><Typography.Title level={4}>Расходы с продажи</Typography.Title><div className="settings-grid">{s.settings.fees.map((f,i)=><Form.Item key={i} name={'fee_'+i} label={f.name+', %'} rules={[{required:true}]}><InputNumber min={0} max={99.99}/></Form.Item>)}</div>
     <Divider/><Typography.Title level={4}>Коэффициенты для объёмов</Typography.Title><div className="settings-grid five">{volumes.map(n=><Form.Item key={n} name={'mult_'+n} label={`${n} мл`}><InputNumber min={0.01} max={100} placeholder="Не задан"/></Form.Item>)}</div><Button type="primary" htmlType="submit" loading={busy}>Сохранить настройки</Button>
   </Form></Card></>;
 }
 
-function ImportCSV({api,refresh,message,embedded=false}) {
-  const [kind,setKind]=useState('bottle'),[update,setUpdate]=useState(false),[file,setFile]=useState(null),[preview,setPreview]=useState(null),[busy,setBusy]=useState(false);
-  const draft=useRef(null),generation=useRef(0);
-  const reset=()=>{generation.current++;draft.current=null;setPreview(null)};
+function ImportCSV({api,refresh,message,embedded=false,targetCategory="",onClose}) {
+  const [mode,setMode]=useState('prices'),[category,setCategory]=useState(targetCategory),[update,setUpdate]=useState(false);
+  const [file,setFile]=useState(null),[preview,setPreview]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [applied,setApplied]=useState(null);
+  const prices=mode==='prices';
+  const confirmDiscard=useLegacyDiscard();
+  const dirty=!applied && (!!file || mode!=='prices' || category!==targetCategory || update);
+  const releaseImport=useLegacyNavigationLock('import-csv', dirty);
+  const draft=useRef(null),working=useRef(false);
+  const reset=()=>{draft.current=null;setPreview(null);setApplied(null);setError('')};
   const check=async()=>{
-    if(!file)return message.info('Выберите CSV-файл');if(file.size>5_000_000)return message.error('Файл должен быть меньше 5 МБ');
-    const seq=++generation.current;setBusy(true);
-    try{const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-      const payload={content:btoa(binary),kind,update_existing:update};const result=await api('/api/import/preview',payload);
-      if(seq===generation.current){draft.current=payload;setPreview(result)}
-    }catch(e){message.error(e.message)}finally{setBusy(false)}
+    if(working.current||!file)return;
+    reset();
+    if(file.size>5_000_000){setError('CSV должен быть меньше 5 МБ');return;}
+    working.current=true;setBusy(true);
+    try {
+      const bytes=new Uint8Array(await file.arrayBuffer());
+      let binary='';
+      for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+      const payload={content:btoa(binary),mode,kind:category?categoryKind(category,[]):'bottle',category,update_existing:update};
+      const result=await api('/api/import/preview',payload);
+      draft.current={...payload,fingerprint:result.fingerprint};setPreview(result);
+    } catch(e) {setError(e.message);}
+    finally {working.current=false;setBusy(false);}
   };
-  const apply=async()=>{if(!draft.current)return;setBusy(true);try{await api('/api/import/apply',draft.current);reset();await refresh();message.success('Карточки импортированы')}catch(e){message.error(e.message)}finally{setBusy(false)}};
-  return <>{!embedded&&<Heading title="Импорт CSV" sub="Загрузка карточек товаров с предварительной проверкой."/>}<Card>
-    <Alert showIcon type="info" title="Импорт создаёт карточки" description="Остатки и себестоимость вносятся поступлениями. Нужны колонки NAME / EXTERNAL_CODE или Название / Код; дополнительно PRICE и VOLUME." style={{marginBottom:22}}/>
-    <Space wrap style={{marginBottom:20}}><Select aria-label="Категория импорта" disabled={busy} value={kind} onChange={v=>{setKind(v);reset()}} options={Object.entries(K).filter(([k])=>k!=='liquid').map(([value,label])=>({value,label}))}/><Checkbox disabled={busy} checked={update} onChange={e=>{setUpdate(e.target.checked);reset()}}>Обновлять существующие карточки</Checkbox><input aria-label="CSV-файл" disabled={busy} type="file" accept=".csv" onChange={e=>{setFile(e.target.files[0]);reset()}}/></Space>
-    <Space><Button loading={busy} onClick={check}>Проверить файл</Button><Button type="primary" disabled={!preview||busy} onClick={apply}>Применить импорт</Button></Space>
-    {preview&&<><Divider/><p>Всего {preview.count} · новых {preview.new} · совпадений {preview.existing}. Предпросмотр первых 50 строк.</p><Table rowKey="code" dataSource={preview.rows} pagination={{pageSize:10}} columns={[{title:'Код',dataIndex:'code'},{title:'Название',dataIndex:'name'},{title:'Объём',dataIndex:'capacity',render:v=>v?fmt(v/1000)+' мл':'—'},{title:'Цена продажи',dataIndex:'sale',render:money}]} scroll={{x:'max-content'}}/></>}
+  const apply=async()=>{
+    if(!draft.current||working.current)return;
+    working.current=true;setBusy(true);setError('');
+    try {
+      const result=await api('/api/import/apply',draft.current);
+      reset();
+      releaseImport();
+      setApplied(prices?`Обновлено цен продажи: ${result.changed}`:'Карточки импортированы');
+      await refresh();
+    } catch(e) {setError(e.message);}
+    finally {working.current=false;setBusy(false);}
+  };
+  const status={changed:'Будет обновлена',unchanged:'Цена совпадает',blank:'Цена пустая',missing:'Товар не найден',outside:'Другая категория'};
+  const columns=[
+    {title:'Код товара',dataIndex:'code',width:108},
+    {title:'Наименование',dataIndex:'name',width:218,render:value=>value||'—'},
+    ...(prices?[
+      {title:'Цена закупки',dataIndex:'purchase',width:125,render:(value,row)=><div>
+        <span style={{whiteSpace:'nowrap'}}>{money(value)}</span>
+        {value!=null&&<div className="secondary-text">{row.purchaseFromFile?'Из CSV':'Из карточки'}</div>}
+      </div>},
+      {title:'Текущая цена',dataIndex:'previous',width:115,render:value=><span style={{whiteSpace:'nowrap'}}>{money(value)}</span>},
+      {title:'Цена из файла',dataIndex:'sale',width:115,render:value=><span style={{whiteSpace:'nowrap'}}>{money(value)}</span>},
+      {title:'Результат',dataIndex:'status',width:145,render:value=>status[value]},
+    ]:[
+      {title:'Объём',dataIndex:'capacity',render:value=>value?fmt(value/1000)+' мл':'—'},
+      {title:'Цена закупки',dataIndex:'purchase',render:value=><span style={{whiteSpace:'nowrap'}}>{money(value)}</span>},
+      {title:'Цена продажи',dataIndex:'sale',render:value=><span style={{whiteSpace:'nowrap'}}>{money(value)}</span>},
+    ]),
+  ];
+  const content=<>{!embedded&&<Heading title="Импорт CSV" sub="Загрузка товаров и цен с предварительной проверкой."/>}<Card>
+    <Space wrap style={{marginBottom:16}}>
+      <Select aria-label="Что импортировать" disabled={busy} value={mode} onChange={value=>{setMode(value);reset()}} options={[{value:'prices',label:'Обновить цены продажи'},{value:'cards',label:'Импортировать карточки'}]}/>
+      <Select aria-label="Категория импорта" disabled={busy||Boolean(targetCategory)} value={category} onChange={value=>{setCategory(value);reset()}} options={[{value:'',label:prices?'Все категории':'Категории из CSV'},...categoryDefinitions.filter(entry=>entry.kind).map(({title})=>({value:title,label:title}))]}/>
+    </Space>
+    <Alert showIcon type="info" title={prices?'Цены продажи в каталоге':'Загрузка карточек товаров'}
+      description={prices?'Подходит CSV БИФИТ или таблица с колонками «Код» и «Цена продажи». Пустые цены пропускаются. Отдельные цены магазинов сохраняются.':'Нужны колонки «Код» и «Наименование». Можно добавить цены закупки и продажи и объём.'}
+      style={{marginBottom:16}}/>
+    <Space wrap style={{marginBottom:16}}>
+      {!prices&&<Checkbox disabled={busy} checked={update} onChange={e=>{setUpdate(e.target.checked);reset()}}>Обновлять существующие карточки</Checkbox>}
+      <input aria-label="CSV-файл" disabled={busy} type="file" accept=".csv" onChange={e=>{setFile(e.target.files[0]);reset()}}/>
+    </Space>
+    <div><Space wrap>
+      <Button disabled={!file} loading={busy&&!preview} onClick={check}>Проверить файл</Button>
+      <Button type="primary" disabled={!preview||busy||(prices?!preview.changed:!preview.new&&!(update&&preview.existing))} onClick={apply}>{prices?'Обновить цены':'Применить импорт'}</Button>
+    </Space></div>
+    {error&&<Alert type="error" showIcon title={error} style={{marginTop:16}}/>}
+    {applied&&<Alert type="success" showIcon title={applied} style={{marginTop:16}}/>}
+    {preview&&<><Divider/>
+      <p>{prices?`Всего ${preview.count} · к обновлению ${preview.changed} · цена совпадает ${preview.unchanged} · пустых цен ${preview.blank} · не найдено ${preview.missing} · вне категории ${preview.outside}.`:`Всего ${preview.count} · новых ${preview.new} · совпадений ${preview.existing}.`}</p>
+      <Table rowKey={prices?'line':'code'} dataSource={preview.rows} pagination={{pageSize:10}} columns={columns} scroll={{x:'max-content'}}/>
+    </>}
   </Card></>;
+  return onClose?<Modal open title="Импорт из CSV" maskClosable={false} keyboard={false}
+    width={980} footer={null} onCancel={()=>!working.current&&confirmDiscard(dirty,()=>{releaseImport();onClose();},true)}>{content}</Modal>:content;
 }

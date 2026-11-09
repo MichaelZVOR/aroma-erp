@@ -1,6 +1,7 @@
 'use client';
 
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {useLegacyDiscard,useLegacyNavigationLock} from './NavigationLock';
 import {Alert,App,Button,Card,Empty,Form,Input,Modal,Select,Space,Spin,Statistic,Table,Tabs,Tag,Typography} from 'antd';
 
 const categories={bottle:'Полноразмерные флаконы',liquid:'Жидкость для распива',decant:'Готовые распивы',atom:'Атомайзеры',label:'Наклейки',other:'Прочие материалы'};
@@ -12,15 +13,19 @@ function downloadCSV(rows,name){
 
 export default function WarehouseSetup({s}){
  const {message}=App.useApp();const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[edit,setEdit]=useState(null),[form]=Form.useForm();
+ const [editDirty,setEditDirty]=useState(false);
+ const confirmDiscard=useLegacyDiscard();
+ const releaseLocation=useLegacyNavigationLock('locations', !!edit&&editDirty);
+ const closeLocation=()=>{releaseLocation();setEdit(null);};
  const [tab,setTab]=useState('locations'),[search,setSearch]=useState(''),[status,setStatus]=useState('all'),[page,setPage]=useState(1),[pageSize,setPageSize]=useState(25);
  const [location,setLocation]=useState(null),[date,setDate]=useState(''),[kind,setKind]=useState('all');
  const load=useCallback(async()=>{const r=await fetch('/api/warehouse/state',{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Не удалось открыть подготовку склада');setData(d);setError('');return d;},[]);
  useEffect(()=>{load().catch(e=>setError(e.message));},[load]);
  const rows=useMemo(()=>{const q=search.trim().toLocaleLowerCase('ru');return (data?.reconciliation||[]).filter(r=>(status==='all'||(status==='issues'?['review','unlinked','missing'].includes(r.status):r.status===status))&&[r.sales_name,r.product_name,r.code,r.source_id,...r.issues].join(' ').toLocaleLowerCase('ru').includes(q));},[data,status,search]);
- function openLocation(row){const next={...(row||{role:data.locations.some(x=>x.role==='central')?'store':'central'}),request_key:crypto.randomUUID()};form.resetFields();form.setFieldsValue(next);setEdit(next);}
+ function openLocation(row){setEditDirty(false);const next={...(row||{role:data.locations.some(x=>x.role==='central')?'store':'central'}),request_key:crypto.randomUUID()};form.resetFields();form.setFieldsValue(next);setEdit(next);}
  async function saveLocation(values){
   if(busy)return;setBusy(true);
-  try{const r=await fetch('/api/warehouse/location',{method:'POST',headers:{'Content-Type':'application/json','X-Aroma-Token':s.token},body:JSON.stringify({...values,id:edit.id,revision:edit.revision,request_key:edit.request_key})});const d=await r.json();if(!r.ok)throw Error(d.error||'Не удалось сохранить место');setEdit(null);message.success('Место хранения сохранено');try{await load();}catch(e){setError('Место сохранено, но список не обновился. Нажмите «Обновить подготовку».');}}catch(e){message.error(e.message);}finally{setBusy(false);}
+  try{const r=await fetch('/api/warehouse/location',{method:'POST',headers:{'Content-Type':'application/json','X-Aroma-Token':s.token},body:JSON.stringify({...values,id:edit.id,revision:edit.revision,request_key:edit.request_key})});const d=await r.json();if(!r.ok)throw Error(d.error||'Не удалось сохранить место');closeLocation();message.success('Место хранения сохранено');try{await load();}catch(e){setError('Место сохранено, но список не обновился. Нажмите «Обновить подготовку».');}}catch(e){message.error(e.message);}finally{setBusy(false);}
  }
  function exportLinks(){downloadCSV([['Статус','Позиция продаж','ID продаж','Складская карточка','ID товара','Код','Категория','Замечания','Возможные совпадения'],...rows.map(r=>[statuses[r.status][0],r.sales_name,r.sales_id,r.product_name,r.product_id,r.code,categories[r.kind],r.issues.join('; '),r.candidates.map(x=>x.name+' ['+x.id+']').join('; ')])],'Проверка-связей-товаров.csv');}
  function template(){
@@ -55,8 +60,8 @@ export default function WarehouseSetup({s}){
   </Card>
  </Space>;
  return <>{header}{error&&<Alert type="error" title={error} style={{marginBottom:16}}/>}<Tabs activeKey={tab} onChange={setTab} items={[{key:'locations',label:'Места хранения',children:places},{key:'links',label:'Проверка товаров',children:links},{key:'balances',label:'Начальные остатки',children:balances}]}/>
-  <Modal title={edit?.id?'Изменить место хранения':'Новое место хранения'} open={!!edit} onCancel={()=>!busy&&setEdit(null)} onOk={()=>form.submit()} okText="Сохранить" cancelText="Отмена" confirmLoading={busy} maskClosable={!busy} keyboard={!busy} closable={!busy} destroyOnHidden>
-   <Form form={form} layout="vertical" onFinish={saveLocation} disabled={busy}><Form.Item label="Название" name="name" rules={[{required:true,whitespace:true,message:'Введите название места'}]}><Input aria-label="Название места хранения" maxLength={120} placeholder="Название вашего склада или магазина"/></Form.Item><Form.Item label="Тип места" name="role" rules={[{required:true}]}><Select aria-label="Тип места хранения" options={[{value:'central',label:'Центральный склад'},{value:'store',label:'Магазин'}]}/></Form.Item><Form.Item label="Примечание" name="note"><Input.TextArea aria-label="Примечание места хранения" maxLength={1000} rows={3}/></Form.Item><p className="help-text">Сохраняется только место хранения. Товары, наличие и документы продаж не изменятся.</p></Form>
+  <Modal title={edit?.id?'Изменить место хранения':'Новое место хранения'} open={!!edit} onCancel={()=>!busy&&confirmDiscard(editDirty,closeLocation,true)} onOk={()=>form.submit()} okText="Сохранить" cancelButtonProps={{style:{display:"none"}}} confirmLoading={busy} maskClosable={false} keyboard={false} closable={!busy} destroyOnHidden>
+   <Form form={form} layout="vertical" onFinish={saveLocation} onValuesChange={()=>setEditDirty(true)} disabled={busy}><Form.Item label="Название" name="name" rules={[{required:true,whitespace:true,message:'Введите название места'}]}><Input aria-label="Название места хранения" maxLength={120} placeholder="Название вашего склада или магазина"/></Form.Item><Form.Item label="Тип места" name="role" rules={[{required:true}]}><Select aria-label="Тип места хранения" options={[{value:'central',label:'Центральный склад'},{value:'store',label:'Магазин'}]}/></Form.Item><Form.Item label="Примечание" name="note"><Input.TextArea aria-label="Примечание места хранения" maxLength={1000} rows={3}/></Form.Item><p className="help-text">Сохраняется только место хранения. Товары, наличие и документы продаж не изменятся.</p></Form>
   </Modal>
  </>;
 }

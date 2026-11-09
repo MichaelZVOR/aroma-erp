@@ -1,0 +1,15 @@
+[
+  { "key": "all", "title": "Все товары" },
+  { "key": "bottle", "title": "Полноразмерные флаконы", "kind": "bottle" },
+  { "key": "volumes", "title": "Объёмы", "kind": "bottle" },
+  { "key": "decant", "title": "Распив", "kind": "decant" },
+  { "key": "atom", "title": "Атомайзеры", "kind": "atom" },
+  { "key": "miniatures", "title": "Миниатюры", "kind": "other" },
+  { "key": "cosmetics", "title": "Косметика", "kind": "other" },
+  { "key": "shower-gels", "title": "Гели для душа", "kind": "other" },
+  { "key": "soap", "title": "Мыло", "kind": "other" },
+  { "key": "diffusers", "title": "Диффузоры", "kind": "other" },
+  { "key": "car-perfume", "title": "Автопарфюм", "kind": "other" },
+  { "key": "candles", "title": "Свечи ароматические", "kind": "other" },
+  { "key": "import", "title": "Импорт CSV" }
+]

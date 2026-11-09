@@ -1,6 +1,7 @@
 
 """Product card metadata and explicit BIFIT catalog import; no stock movements."""
-import csv,io,json,re,uuid,hashlib,unicodedata
+import base64,csv,io,json,re,uuid,hashlib,unicodedata,secrets,sqlite3
+from contextlib import closing
 from decimal import Decimal
 def norm(s):
  s=unicodedata.normalize('NFKD',s.lower().replace('ё','е'))
@@ -10,6 +11,7 @@ def norm(s):
 def init(connect):
  with connect() as c:
   c.executescript("""CREATE TABLE IF NOT EXISTS product_profiles(product_id TEXT PRIMARY KEY REFERENCES products(id),revision INTEGER NOT NULL DEFAULT 1,data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS product_photos(product_id TEXT PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,content BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS catalog_imports(digest TEXT PRIMARY KEY,created TEXT NOT NULL,report TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS catalog_members(product_id TEXT PRIMARY KEY REFERENCES products(id));
 CREATE TABLE IF NOT EXISTS archived_products(id TEXT PRIMARY KEY,archived TEXT NOT NULL,data TEXT NOT NULL);
@@ -21,7 +23,79 @@ def cents(v):
  n=Decimal(str(v).strip().replace(',','.'))
  if not n.is_finite() or n<0 or n>100000000 or n*100!=(n*100).to_integral_value():raise ValueError('Проверьте цену закупки')
  return int(n*100)
-def save(c,pid,d,now):
+def card_barcodes(value):
+ if not isinstance(value,list) or len(value)>20:raise ValueError('Можно добавить до 20 штрихкодов')
+ codes=[]
+ for raw in value:
+  if not isinstance(raw,str):raise ValueError('Проверьте штрихкод')
+  code=raw.strip()
+  if not re.fullmatch(r'[0-9]{8}|[0-9]{12,14}',code) or code[-1]!=check_digit(code[:-1]):
+   raise ValueError('Проверьте длину и контрольную цифру штрихкода: '+code)
+  codes.append(code)
+ if len({code.zfill(14) for code in codes})!=len(codes):raise ValueError('Штрихкод повторяется в карточке')
+ return codes
+
+def check_digit(body):
+ return str(-sum(int(d)*(3 if i%2==0 else 1) for i,d in enumerate(reversed(body)))%10)
+
+def used_barcodes(c, exclude=None):
+ used=set()
+ for row in c.execute("SELECT json_extract(data,'$.barcode'),json_extract(data,'$.barcodes') FROM product_profiles WHERE product_id IS NOT ?",(exclude,)):
+  codes=re.split(r'[,;\s|]+',row[0] or '')+json.loads(row[1] or '[]')
+  used.update(code.zfill(14) for code in codes if isinstance(code,str) and code.isascii() and code.isdigit())
+ return used
+
+def generate_barcode(c):
+ used=used_barcodes(c)
+ while True:
+  body='04'+f'{secrets.randbelow(10**10):010d}'
+  code=body+check_digit(body)
+  if code.zfill(14) not in used:return code
+
+def retail_stock(root):
+ database=root/'next-retail'/'data'/'retail.sqlite3'
+ if not database.is_file():return []
+ with closing(sqlite3.connect(database.as_uri()+'?mode=ro',uri=True)) as db:
+  return [{'id':id,'name':name,'code':code} for id,name,code in db.execute(
+   'SELECT p.id,p.name,p.code FROM products p WHERE EXISTS (SELECT 1 FROM retail_lots l WHERE l.product_id=p.id AND l.remaining>0) ORDER BY p.name COLLATE NOCASE')]
+
+def save_creation_details(c,pid,data,incoming,stock,previous):
+ detail=incoming.get('creation_details')
+ if not isinstance(detail,dict):raise ValueError('Проверьте реквизиты новой карточки')
+ if data['good_type'] not in ('product','bundle'):raise ValueError('Выберите тип товара')
+ extra=detail.get('barcodes',[])
+ if not isinstance(extra,list):raise ValueError('Проверьте дополнительные штрихкоды')
+ codes=([data['barcode']] if data['barcode'] else [])+extra
+ old_codes=([previous['barcode']] if previous.get('barcode') else [])+previous.get('barcodes',[])
+ if codes!=old_codes:
+  codes=card_barcodes(codes)
+  used=used_barcodes(c,pid) if codes else set()
+  if any(code.zfill(14) in used for code in codes):raise ValueError('Один из штрихкодов уже используется в каталоге')
+ data['barcode']=codes[0] if codes else ''
+ data['barcodes']=codes[1:]
+ kpi=detail.get('kpi')
+ if kpi is not None:
+  points=Decimal(str(kpi))
+  if not points.is_finite() or not 0<=points<=1000000 or points*100!=(points*100).to_integral_value():
+   raise ValueError('Баллы KPI должны быть от 0 до 1 000 000, до двух знаков после запятой')
+  data['kpi']=str(points)
+ else:data.pop('kpi',None)
+ related=detail.get('related',[])
+ if not isinstance(related,list) or len(related)>30 or any(not isinstance(id,str) for id in related):
+  raise ValueError('Выберите до 30 сопутствующих товаров')
+ if set(related)-{row['id'] for row in stock}-set(previous.get('related_products',[])):raise ValueError('Остатки изменились. Проверьте сопутствующие товары')
+ data['related_products']=list(dict.fromkeys(related))
+ image=detail.get('photo')
+ if image:
+  if not isinstance(image,str) or len(image)>1_600_000 or not image.startswith('data:image/jpeg;base64,'):
+   raise ValueError('Проверьте формат и размер фото')
+  photo=base64.b64decode(image.split(',',1)[1],validate=True)
+  if len(photo)>1_200_000 or not (photo.startswith(b'\xff\xd8\xff') and photo.endswith(b'\xff\xd9')):
+   raise ValueError('Проверьте формат и размер фото')
+  c.execute('INSERT INTO product_photos(product_id,content) VALUES (?,?) ON CONFLICT(product_id) DO UPDATE SET content=excluded.content',(pid,photo))
+
+
+def save(c,pid,d,now,stock=()):
  if 'profile' not in d:return
  incoming=d['profile']
  if not isinstance(incoming,dict):raise ValueError('Проверьте карточку')
@@ -46,8 +120,45 @@ def save(c,pid,d,now):
    try:v=Decimal(data[key].replace(',','.'))
    except Exception:raise ValueError('Проверьте количество / срок годности')
    if not v.is_finite() or v<0:raise ValueError('Количество / срок не может быть отрицательным')
+ if 'creation_details' in incoming:
+  previous=json.loads(old['data']) if old else {}
+  save_creation_details(c,pid,data,incoming,stock,previous)
+  if data['good_type']=='product' and previous.get('good_type') not in (None,'','bundle'):
+   data['good_type']=previous['good_type']
  if old:c.execute('INSERT INTO product_profile_history(product_id,revision,created,data) VALUES(?,?,?,?)',(pid,revision,now,old['data']))
  c.execute('INSERT INTO product_profiles VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET revision=excluded.revision,data=excluded.data',(pid,revision+1,json.dumps(data,ensure_ascii=False)))
+def update_catalog_profile(c,pid,changes,now):
+ row=c.execute('SELECT revision,data FROM product_profiles WHERE product_id=?',(pid,)).fetchone()
+ if row:
+  old=json.loads(row['data'])
+  if all(old.get(key)==value for key,value in changes.items()):return
+  c.execute('INSERT INTO product_profile_history(product_id,revision,created,data) VALUES(?,?,?,?)',(pid,row['revision'],now,row['data']))
+  c.execute('UPDATE product_profiles SET revision=revision+1,data=? WHERE product_id=?',(json.dumps({**old,**changes},ensure_ascii=False),pid))
+ else:
+  c.execute('INSERT INTO product_profiles(product_id,revision,data) VALUES(?,1,?)',(pid,json.dumps(changes,ensure_ascii=False)))
+
+def move_opening_categories(connect,now):
+ with connect() as c:
+  c.execute('BEGIN IMMEDIATE')
+  key='catalog_moved_volumes_to_full_bottles_v1'
+  if c.execute('SELECT 1 FROM settings WHERE key=?',(key,)).fetchone():return
+  for row in c.execute("SELECT product_id FROM product_profiles WHERE json_extract(data,'$.category') IN ('Объёмы','Объемы')").fetchall():
+   update_catalog_profile(c,row[0],{'category':'Полноразмерные флаконы'},now)
+  c.execute('INSERT INTO settings(key,value) VALUES(?,?)',(key,'1'))
+
+def archive_catalog(c,ids,root,now):
+ if not isinstance(ids,list) or not ids or len(ids)>250 or any(not isinstance(id,str) for id in ids):
+  raise ValueError('Выберите от 1 до 250 товаров')
+ retail=retail_stock(root)
+ stock={item['id'] for item in retail}
+ stock_codes={item['code'] for item in retail}
+ for pid in set(ids):
+  product=c.execute('SELECT code FROM products WHERE id=?',(pid,)).fetchone()
+  if not product:raise ValueError('Карточка не найдена')
+  if pid in stock or product['code'] in stock_codes or c.execute("SELECT 1 FROM lots WHERE product_id=? AND status='active' AND remaining>0",(pid,)).fetchone():
+   raise ValueError('Сначала разберите остатки товара '+product['code'])
+  update_catalog_profile(c,pid,{'archived_from_catalog':True},now)
+
 def parse(raw):
  try:text=raw.decode('utf-8-sig')
  except UnicodeDecodeError:text=raw.decode('cp1251')

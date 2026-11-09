@@ -1,0 +1,1594 @@
+{
+  "context": {
+    "catalog": [
+      {
+        "id": "test-item",
+        "source_id": null,
+        "name": "Тестовый товар",
+        "cost": 40000,
+        "price": 100000,
+        "updated": "2026-01-01",
+        "group_name": "decant",
+        "cost_source": "manual"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 100000,
+            "discount": 100000,
+            "revenue": 0,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "0",
+            "gross": -40000,
+            "remaining": -40000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 100000,
+          "revenue": 0,
+          "cost": 40000,
+          "fee": 0,
+          "gross": -40000,
+          "remaining": -40000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "card",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 100000,
+            "discount": 100000,
+            "revenue": 0,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "2.99",
+            "gross": -40000,
+            "remaining": -40000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 100000,
+          "revenue": 0,
+          "cost": 40000,
+          "fee": 0,
+          "gross": -40000,
+          "remaining": -40000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "card",
+        "rate": "2.99",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Тариф должен быть меньше 100%"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 100000,
+            "discount": 100000,
+            "revenue": 0,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -40000,
+            "remaining": -40000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 100000,
+          "revenue": 0,
+          "cost": 40000,
+          "fee": 0,
+          "gross": -40000,
+          "remaining": -40000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 100000,
+            "discount": 100000,
+            "revenue": 0,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -40000,
+            "remaining": -40000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 100000,
+          "revenue": 0,
+          "cost": 40000,
+          "fee": 0,
+          "gross": -40000,
+          "remaining": -40000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 0,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 100000,
+            "discount": 100000,
+            "revenue": 0,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -40000,
+            "remaining": -40000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 100000,
+          "revenue": 0,
+          "cost": 40000,
+          "fee": 0,
+          "gross": -40000,
+          "remaining": -40000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 100000,
+            "discount": 15000,
+            "revenue": 85000,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "0",
+            "gross": 45000,
+            "remaining": 45000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 15000,
+          "revenue": 85000,
+          "cost": 40000,
+          "fee": 0,
+          "gross": 45000,
+          "remaining": 45000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 0,
+          "card": 85000
+        },
+        "payment": "card",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 100000,
+            "discount": 15000,
+            "revenue": 85000,
+            "cost": 40000,
+            "fee": 2542,
+            "payment": "card",
+            "rate": "2.99",
+            "gross": 45000,
+            "remaining": 42458,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 15000,
+          "revenue": 85000,
+          "cost": 40000,
+          "fee": 2542,
+          "gross": 45000,
+          "remaining": 42458,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 0,
+          "card": 85000
+        },
+        "payment": "card",
+        "rate": "2.99",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Тариф должен быть меньше 100%"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 100000,
+            "discount": 15000,
+            "revenue": 85000,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 45000,
+            "remaining": 45000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 15000,
+          "revenue": 85000,
+          "cost": 40000,
+          "fee": 0,
+          "gross": 45000,
+          "remaining": 45000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 85000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 100000,
+            "discount": 15000,
+            "revenue": 85000,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 45000,
+            "remaining": 45000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 15000,
+          "revenue": 85000,
+          "cost": 40000,
+          "fee": 0,
+          "gross": 45000,
+          "remaining": 45000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 85000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 850,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 1,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 100000,
+            "discount": 15000,
+            "revenue": 85000,
+            "cost": 40000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 45000,
+            "remaining": 45000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 100000,
+          "discount": 15000,
+          "revenue": 85000,
+          "cost": 40000,
+          "fee": 0,
+          "gross": 45000,
+          "remaining": 45000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 85000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 1,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 300000,
+            "discount": 300000,
+            "revenue": 0,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "0",
+            "gross": -120000,
+            "remaining": -120000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 300000,
+          "revenue": 0,
+          "cost": 120000,
+          "fee": 0,
+          "gross": -120000,
+          "remaining": -120000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "card",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 300000,
+            "discount": 300000,
+            "revenue": 0,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "2.99",
+            "gross": -120000,
+            "remaining": -120000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 300000,
+          "revenue": 0,
+          "cost": 120000,
+          "fee": 0,
+          "gross": -120000,
+          "remaining": -120000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "card",
+        "rate": "2.99",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Тариф должен быть меньше 100%"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 300000,
+            "discount": 300000,
+            "revenue": 0,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -120000,
+            "remaining": -120000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 300000,
+          "revenue": 0,
+          "cost": 120000,
+          "fee": 0,
+          "gross": -120000,
+          "remaining": -120000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 300000,
+            "discount": 300000,
+            "revenue": 0,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -120000,
+            "remaining": -120000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 300000,
+          "revenue": 0,
+          "cost": 120000,
+          "fee": 0,
+          "gross": -120000,
+          "remaining": -120000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 0,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 0,
+            "base": 300000,
+            "discount": 300000,
+            "revenue": 0,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": -120000,
+            "remaining": -120000,
+            "margin": null,
+            "markup": "-100"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 300000,
+          "revenue": 0,
+          "cost": 120000,
+          "fee": 0,
+          "gross": -120000,
+          "remaining": -120000,
+          "margin": null,
+          "markup": "-100",
+          "cash": 0,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 300000,
+            "discount": 45000,
+            "revenue": 255000,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "card",
+            "rate": "0",
+            "gross": 135000,
+            "remaining": 135000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 45000,
+          "revenue": 255000,
+          "cost": 120000,
+          "fee": 0,
+          "gross": 135000,
+          "remaining": 135000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 0,
+          "card": 255000
+        },
+        "payment": "card",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 300000,
+            "discount": 45000,
+            "revenue": 255000,
+            "cost": 120000,
+            "fee": 7625,
+            "payment": "card",
+            "rate": "2.99",
+            "gross": 135000,
+            "remaining": 127375,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 45000,
+          "revenue": 255000,
+          "cost": 120000,
+          "fee": 7625,
+          "gross": 135000,
+          "remaining": 127375,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 0,
+          "card": 255000
+        },
+        "payment": "card",
+        "rate": "2.99",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Тариф должен быть меньше 100%"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 300000,
+            "discount": 45000,
+            "revenue": 255000,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 135000,
+            "remaining": 135000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 45000,
+          "revenue": 255000,
+          "cost": 120000,
+          "fee": 0,
+          "gross": 135000,
+          "remaining": 135000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 255000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 300000,
+            "discount": 45000,
+            "revenue": 255000,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 135000,
+            "remaining": 135000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 45000,
+          "revenue": 255000,
+          "cost": 120000,
+          "fee": 0,
+          "gross": 135000,
+          "remaining": 135000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 255000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 850,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "result": {
+        "rows": [
+          {
+            "line_id": "new:0",
+            "id": "test-item",
+            "name": "Тестовый товар",
+            "group_name": "decant",
+            "cost_source": "manual",
+            "qty": 3,
+            "unit_cost": 40000,
+            "list_price": 100000,
+            "price": 85000,
+            "base": 300000,
+            "discount": 45000,
+            "revenue": 255000,
+            "cost": 120000,
+            "fee": 0,
+            "payment": "cash",
+            "rate": "0",
+            "gross": 135000,
+            "remaining": 135000,
+            "margin": "52.94117647058823529411764706",
+            "markup": "112.5"
+          }
+        ],
+        "totals": {
+          "base": 300000,
+          "discount": 45000,
+          "revenue": 255000,
+          "cost": 120000,
+          "fee": 0,
+          "gross": 135000,
+          "remaining": 135000,
+          "margin": "52.94117647058823529411764706",
+          "markup": "112.5",
+          "cash": 255000,
+          "card": 0
+        },
+        "payment": "cash",
+        "rate": "0",
+        "payment_mode": "rows"
+      }
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 3,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Цена выше прайса: сначала измените цену товара в базе"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 0,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 850,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "card",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "card",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "card",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 0
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "cash",
+            "rate": "2.99"
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "id": "test-item",
+            "qty": 0,
+            "price": 1001,
+            "payment": "cash",
+            "rate": 100
+          }
+        ]
+      },
+      "error": "Количество должно быть целым от 1 до 100000"
+    }
+  ]
+}

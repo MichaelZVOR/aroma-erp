@@ -1,5 +1,6 @@
 'use client';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
+import {useLegacyDiscard,useLegacyNavigationLock} from './NavigationLock';
 import {Alert,App,Button,Card,Descriptions,Empty,Form,Image,Input,InputNumber,Modal,Select,Space,Spin,Table,Tabs,Tag,Typography} from 'antd';
 
 const groups={bottle:'Полноразмерные флаконы',decant:'Распив',atom:'Атомайзеры',other:'Прочие товары'};
@@ -45,6 +46,15 @@ export default function Sales({s}){
   let initial;try{initial=JSON.parse(localStorage.getItem('aroma.sales.draft')||'null');}catch{}
   setDraft(initial&&Array.isArray(initial.items)&&initial.request_key?{...initial,items:initial.items.map(x=>({...x,line_id:x.line_id||crypto.randomUUID(),payment:x.payment||initial.payment||'cash',rate:x.rate??initial.rate??null}))}:fresh());
  },[load]);
+ const [editDirty,setEditDirty]=useState(false);
+ const confirmDiscard=useLegacyDiscard();
+ const draftDirty=!!(draft?.items.length||draft?.note||draft?.reason||draft?.document_id);
+ const voidDirty=!!voidDoc&&!!reason.trim();
+ useLegacyNavigationLock('legacy-sale', draftDirty);
+ const releaseCard=useLegacyNavigationLock('legacy-sale-card', edit!==null&&editDirty);
+ const releaseVoid=useLegacyNavigationLock('legacy-sale-void', voidDirty);
+ const closeCard=()=>{releaseCard();setEdit(null);};
+ const closeVoid=()=>{releaseVoid();setVoidDoc(null);};
  useEffect(()=>{if(draft)try{localStorage.setItem('aroma.sales.draft',JSON.stringify(draft));}catch{}},[draft]);
  const signature=JSON.stringify(draft&&payload(draft));
  useEffect(()=>{
@@ -61,8 +71,8 @@ export default function Sales({s}){
  const rowProduct=r=>r.snapshot?{...r.snapshot,cost:Object.hasOwn(r,'cost_override')?r.cost_override==null?null:Math.round(r.cost_override*100):r.snapshot.cost,price:Object.hasOwn(r,'list_price_override')?r.list_price_override==null?null:Math.round(r.list_price_override*100):r.snapshot.price}:product(r.id);
  const source=p=>s.products.find(x=>x.id===p?.source_id);
  const filtered=catalog.filter(p=>p.group_name===group&&[p.name,source(p)?.code].join(' ').toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru').trim()));
- const editCard=p=>{setEdit(p||{});form.setFieldsValue({id:p?.id,name:p?.name||'',group_name:p?.group_name||group,cost:p?.cost==null?null:p.cost/100,price:p?.price==null?null:p.price/100});};
- const saveCard=async values=>{if(inFlight.current)return;inFlight.current=true;setBusy(true);try{await api('catalog',values);await load();setEdit(null);message.success('Карточка продаж сохранена');}catch(e){message.error(e.message);}finally{inFlight.current=false;setBusy(false);}};
+ const editCard=p=>{setEditDirty(false);setEdit(p||{});form.setFieldsValue({id:p?.id,name:p?.name||'',group_name:p?.group_name||group,cost:p?.cost==null?null:p.cost/100,price:p?.price==null?null:p.price/100});};
+ const saveCard=async values=>{if(inFlight.current)return;inFlight.current=true;setBusy(true);try{await api('catalog',values);await load();closeCard();message.success('Карточка продаж сохранена');}catch(e){message.error(e.message);}finally{inFlight.current=false;setBusy(false);}};
  const save=async()=>{
   if(inFlight.current)return;inFlight.current=true;setBusy(true);setError('');
   try{
@@ -123,7 +133,7 @@ export default function Sales({s}){
     {preview.rows.some(r=>r.cost_source==='csv')&&<Alert style={{marginTop:16}} type="warning" showIcon title="Предварительная себестоимость из CSV" description="Закупочные значения сохранены из вашего файла. Пока они условные, прибыль и маржа тоже предварительные. Уточните себестоимость в базе перед сохранением, если нужны точные результаты."/>}
     <p className="help-text">Вычитается только эквайринг по выбранной оплате. Комиссия продавцу, реклама и общие 20% не начисляются. Остаток после эквайринга не является чистой прибылью.</p>
    </Card>}
-   <Space><Button size="large" type="primary" loading={busy} disabled={!preview||!!calcError} onClick={save}>{draft.document_id?'Сохранить исправление':'Сохранить документ'}</Button><Button disabled={busy||!draft.items.length} onClick={()=>Modal.confirm({title:draft.document_id?'Отменить несохранённое исправление?':'Очистить несохранённый документ?',content:'Сохранённые документы и их версии останутся в журнале.',okText:'Очистить',cancelText:'Оставить',onOk:()=>{setDraft({...fresh(),rate:draft.rate});pendingSave.current=null;}})}>{draft.document_id?'Отменить исправление':'Очистить черновик'}</Button></Space>
+   <Space><Button size="large" type="primary" loading={busy} disabled={!preview||!!calcError} onClick={save}>{draft.document_id?'Сохранить исправление':'Сохранить документ'}</Button><Button disabled={busy||!draft.items.length} onClick={()=>confirmDiscard(draftDirty,()=>{setDraft({...fresh(),rate:draft.rate});pendingSave.current=null;})}>{draft.document_id?'Отменить исправление':'Очистить черновик'}</Button></Space>
   </Space>}
   {tab==='catalog'&&<Card title="Товары для ручного учёта продаж" extra={<Button onClick={()=>editCard(null)}>Добавить позицию</Button>}>
    <Alert type="info" showIcon title="Полноразмерные флаконы и распив хранятся отдельными списками" description="Цены для продаж редактируются здесь. Изменения не затрагивают калькулятор, складские документы и ранее сохранённые продажи." style={{marginBottom:16}}/>
@@ -142,14 +152,14 @@ export default function Sales({s}){
    </Space><p>Документов: {active.length}. Итоги считаются по отобранным строкам; фильтр оплаты не включает другие строки смешанного документа. Аннулированные документы в финансовые итоги не входят.</p><Summary value={totals}/>
    {active.some(d=>d.payload.rows.some(r=>r.cost_source==='csv'))&&<Alert style={{marginTop:16}} type="warning" title="В итогах есть продажи с предварительной себестоимостью из CSV"/>}
   </Card><Card title="Журнал продаж"><Table rowKey="id" dataSource={docs} columns={documentColumns} pagination={pagination} scroll={{x:1800}} locale={{emptyText:<Empty description="Продажи ещё не внесены"/>}}/></Card></Space>}
-  <Modal title={edit?.id?'Карточка для продаж':'Новая позиция для продаж'} open={edit!==null} onCancel={()=>!busy&&setEdit(null)} onOk={()=>form.submit()} okText="Сохранить" cancelText="Отмена" confirmLoading={busy} destroyOnHidden>
-   <Form form={form} layout="vertical" onFinish={saveCard} disabled={busy}><Form.Item name="id" hidden><Input/></Form.Item><Form.Item name="group_name" label="Группа" rules={[{required:true}]}><Select options={Object.entries(groups).map(([value,label])=>({value,label}))}/></Form.Item><Form.Item name="name" label="Название с объёмом" rules={[{required:true,max:300}]}><Input/></Form.Item><Form.Item name="cost" label="Полная себестоимость одной штуки, ₽"><InputNumber aria-label="Себестоимость товара для продаж" min={0} precision={2} style={{width:'100%'}} placeholder="Заполнить позже"/></Form.Item><Form.Item name="price" label="Установленная цена продажи одной штуки, ₽"><InputNumber aria-label="Цена товара для продаж" min={0} precision={2} style={{width:'100%'}} placeholder="Заполнить позже"/></Form.Item><p>Пустое поле означает, что значение пока неизвестно. Ноль — явно заданная нулевая стоимость.</p></Form>
+  <Modal title={edit?.id?'Карточка для продаж':'Новая позиция для продаж'} open={edit!==null} maskClosable={false} keyboard={false} onCancel={()=>!busy&&confirmDiscard(editDirty,closeCard,true)} onOk={()=>form.submit()} okText="Сохранить" cancelButtonProps={{style:{display:"none"}}} confirmLoading={busy} destroyOnHidden>
+   <Form form={form} layout="vertical" onFinish={saveCard} onValuesChange={()=>setEditDirty(true)} disabled={busy}><Form.Item name="id" hidden><Input/></Form.Item><Form.Item name="group_name" label="Группа" rules={[{required:true}]}><Select options={Object.entries(groups).map(([value,label])=>({value,label}))}/></Form.Item><Form.Item name="name" label="Название с объёмом" rules={[{required:true,max:300}]}><Input/></Form.Item><Form.Item name="cost" label="Полная себестоимость одной штуки, ₽"><InputNumber aria-label="Себестоимость товара для продаж" min={0} precision={2} style={{width:'100%'}} placeholder="Заполнить позже"/></Form.Item><Form.Item name="price" label="Установленная цена продажи одной штуки, ₽"><InputNumber aria-label="Цена товара для продаж" min={0} precision={2} style={{width:'100%'}} placeholder="Заполнить позже"/></Form.Item><p>Пустое поле означает, что значение пока неизвестно. Ноль — явно заданная нулевая стоимость.</p></Form>
   </Modal>
   <Modal title={'Документ № '+(view?.id||'')+' · версия '+(view?.revision||1)} open={!!view} onCancel={()=>setView(null)} width={1250} footer={view&&<Space wrap><Button onClick={()=>downloadDoc(view,'xlsx')}>Скачать Excel</Button><Button onClick={()=>downloadDoc(view,'docx')}>Скачать DOCX</Button><Button onClick={()=>openHistory(view)}>История изменений</Button>{view.status==='posted'&&!view.historical&&<><Button type="primary" onClick={()=>beginCorrection(view)}>Исправить документ</Button><Button danger onClick={()=>{setVoidDoc(view);setReason('');}}>Аннулировать</Button></>}<Button onClick={()=>setView(null)}>Закрыть</Button></Space>}>
    {view&&<><p>{view.date} · {paymentName(view.payment)} · {view.status==='posted'?'Сохранён':'Аннулирован'}{view.historical?' · Архивная версия':''}</p>{view.note&&<p>{view.note}</p>}{view.status==='void'&&<Alert type="warning" title={'Причина аннулирования: '+view.void_reason} description={view.void_at}/>}<Summary value={view.payload.totals}/><Table style={{marginTop:20}} rowKey="line_id" columns={rowColumns} dataSource={view.payload.rows} pagination={false} scroll={{x:1750}}/><p>Цены, себестоимость и оплата зафиксированы по строкам. Исправления сохраняют предыдущие версии. DOCX можно открыть в Word или загрузить в Google Документы.</p></>}
   </Modal>
   <Modal title={'История документа № '+(historyDoc?.id||'')} open={!!historyDoc} onCancel={()=>setHistoryDoc(null)} footer={<Button onClick={()=>setHistoryDoc(null)}>Закрыть</Button>} width={900}><Table rowKey="revision" loading={historyBusy} dataSource={historyItems} pagination={false} columns={[{title:'Версия',dataIndex:'revision'},{title:'Изменено',dataIndex:'changed_at',render:v=>new Date(v).toLocaleString('ru-RU')},{title:'Причина',dataIndex:'reason'},{title:'',render:(_,r)=><Button onClick={()=>{const current=data.documents.find(d=>d.id===historyDoc.id);setView({...r.document,historical:r.revision!==current?.revision});setHistoryDoc(null);}}>Открыть версию</Button>}]}/></Modal>
-  <Modal open={!!voidDoc} title="Аннулирование ошибочной записи" onCancel={()=>!busy&&setVoidDoc(null)} okText="Аннулировать" cancelText="Оставить" okButtonProps={{danger:true,disabled:!reason.trim()}} confirmLoading={busy} onOk={async()=>{if(inFlight.current)return;inFlight.current=true;setBusy(true);try{await api('void',{id:voidDoc.id,revision:voidDoc.revision,reason});const next=await load();setView(next.documents.find(d=>d.id===voidDoc.id));setVoidDoc(null);message.success('Документ аннулирован, история сохранена');}catch(e){message.error(e.message);}finally{inFlight.current=false;setBusy(false);}}}>
+  <Modal open={!!voidDoc} maskClosable={false} keyboard={false} title="Аннулирование ошибочной записи" onCancel={()=>!busy&&confirmDiscard(voidDirty,closeVoid)} okText="Аннулировать" cancelText="Оставить" okButtonProps={{danger:true,disabled:!reason.trim()}} confirmLoading={busy} onOk={async()=>{if(inFlight.current)return;inFlight.current=true;setBusy(true);try{await api('void',{id:voidDoc.id,revision:voidDoc.revision,reason});const next=await load();setView(next.documents.find(d=>d.id===voidDoc.id));closeVoid();message.success('Документ аннулирован, история сохранена');}catch(e){message.error(e.message);}finally{inFlight.current=false;setBusy(false);}}}>
    <p>Документ останется в журнале, но перестанет участвовать в итогах. Складские остатки не изменятся.</p><Input.TextArea aria-label="Причина аннулирования" rows={3} maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Укажите причину"/>
   </Modal>
  </div>;
