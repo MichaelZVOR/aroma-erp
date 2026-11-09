@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal,InvalidOperation,ROUND_HALF_UP,ROUND_CEILING,ROUND_FLOOR
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse,unquote
+from urllib.parse import urlparse,unquote,parse_qs,quote as urlquote
 
 ROOT=Path(__file__).resolve().parent
 DATA=Path(os.environ.get('AROMA_DATA_DIR',str(ROOT/'data')))
@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS cost_calculations(id TEXT PRIMARY KEY,name TEXT NOT N
  sales_module.init(connect)
  warehouse_module.init(connect)
  product_cards_module.init(connect)
+ product_cards_module.move_opening_categories(connect,now())
  backup()
 def config(c):return json.loads(c.execute("SELECT value FROM settings WHERE key='config'").fetchone()[0])
 def fee_rate(s):return sum((dec(x['rate']) for x in s['fees']),Decimal(0))/100
@@ -87,12 +88,15 @@ def state():
   manifest=ROOT/'static'/'image-map.json'
   images=json.loads(manifest.read_text(encoding='utf8')) if manifest.exists() else {}
   details=product_cards_module.profiles(c)
+  photo_ids={row[0] for row in c.execute('SELECT product_id FROM product_photos')}
   by_id={p['id']:p for p in products}
   for p in products:
    p['profile']=details.get(p['id'],{})
    source=p;seen=set();p['image']=None
    while source and source['id'] not in seen:
-    seen.add(source['id']);filename=images.get(source['code'])
+    seen.add(source['id'])
+    if source['id'] in photo_ids:p['image']='/product-photo/'+urlquote(source['id'],safe='');break
+    filename=images.get(source['code'])
     if filename and re.fullmatch(r'[a-f0-9]{24}\.(?:png|jpe?g|webp)',filename):
      p['image']='/images/'+filename;break
     source=by_id.get(source.get('source_id'))
@@ -280,6 +284,9 @@ def mutate(path,d):
  if not isinstance(d,dict):raise ValueError('Неверный запрос')
  with connect() as c:
   c.execute('BEGIN IMMEDIATE')
+  if path=='/api/product/archive':
+   product_cards_module.archive_catalog(c,d.get('ids'),ROOT,now())
+   return {'ok':True}
   if path=='/api/product':
    ident=d.get('id');kind=d.get('kind');name=title(d.get('name'));code=title(d.get('code'),60)
    if kind not in KINDS:raise ValueError('Выберите категорию')
@@ -293,7 +300,9 @@ def mutate(path,d):
     c.execute('UPDATE products SET code=?,name=?,capacity=?,sale=?,note=? WHERE id=?',(code,name,cap,sale,note(d.get('note')),ident))
    else:
     ident=str(uuid.uuid4());c.execute('INSERT INTO products(id,code,name,kind,capacity,sale,note) VALUES(?,?,?,?,?,?,?)',(ident,code,name,kind,cap,sale,note(d.get('note'))))
-   product_cards_module.save(c,ident,d,now())
+   details=(d.get('profile') or {}).get('creation_details') if isinstance(d.get('profile'),dict) else None
+   stock=product_cards_module.retail_stock(ROOT) if isinstance(details,dict) and details.get('related') else ()
+   product_cards_module.save(c,ident,d,now(),stock)
    return {'ok':True,'id':ident}
   if path=='/api/settings':
    s=d.get('settings')
@@ -371,16 +380,23 @@ def mutate(path,d):
    c.execute("UPDATE documents SET status='reversed' WHERE id=?",(old['id'],))
   else:raise ValueError('Неизвестная операция')
   return {'ok':True,'id':doc}
-def parse_csv(d):
- kind=d.get('kind')
- if kind not in KINDS or kind=='liquid':raise ValueError('Выберите категорию импорта')
+def csv_text(d):
  try:raw=base64.b64decode(d.get('content',''),validate=True)
  except Exception:raise ValueError('Не удалось прочитать CSV')
  if len(raw)>5_000_000:raise ValueError('CSV должен быть меньше 5 МБ')
- try:text=raw.decode('utf-8-sig')
- except UnicodeDecodeError:text=raw.decode('cp1251')
- try:delimiter=csv.Sniffer().sniff(text[:8000],delimiters=';,\t').delimiter
+ try:return raw.decode('utf-8-sig')
+ except UnicodeDecodeError:return raw.decode('cp1251')
+
+def parse_csv(d):
+ kind=d.get('kind')
+ if kind not in KINDS or kind=='liquid':raise ValueError('Выберите категорию импорта')
+ text=csv_text(d)
+ try:delimiter=csv.Sniffer().sniff(text[:8000],delimiters=';,	').delimiter
  except csv.Error:delimiter=';'
+ definitions=json.loads((ROOT/'frontend/app/product-categories.json').read_text(encoding='utf-8-sig')) if (ROOT/'frontend/app/product-categories.json').is_file() else []
+ categories={entry['title']:entry['kind'] for entry in definitions if 'kind' in entry}
+ target=d.get('category')
+ if target and target not in categories:raise ValueError('Неизвестная категория импорта')
  reader=csv.DictReader(io.StringIO(text),delimiter=delimiter);items=[];codes=set()
  import re
  for index,row in enumerate(reader,2):
@@ -391,12 +407,106 @@ def parse_csv(d):
   if not capacity:
    match=re.search(r'(\d+(?:[.,]\d+)?)\s*мл\.?\s*$',name,re.I);capacity=match.group(1) if match else None
   cap=optional(capacity,1000,'Объём');sale=optional(r.get('PRICE') or r.get('ЦЕНА ПРОДАЖИ'),100,'Цена продажи')
-  if kind=='atom' and not cap:raise ValueError('Для атомайзера нужен объём: '+code)
-  items.append({'code':code,'name':name,'capacity':cap,'sale':sale,'kind':kind})
+  raw_purchase=r.get('PURCHASE_PRICE') or r.get('ЦЕНА ЗАКУПКИ') or r.get('ЗАКУПОЧНАЯ ЦЕНА') or ''
+  try:purchase=optional(re.sub(r'[\s₽]','',raw_purchase),100,'Цена закупки')
+  except ValueError as error:raise ValueError(f'Строка {index}: {error}') from error
+  category=target or (r.get('GROUP') or '').strip()
+  item_kind=categories.get(category,kind if target else (r.get('KIND') or kind))
+  if item_kind not in KINDS or item_kind=='liquid':raise ValueError('Выберите товарную категорию для '+code)
+  if category and not target and category not in categories:raise ValueError('Неизвестная категория: '+category)
+  if item_kind=='atom' and not cap:raise ValueError('Для атомайзера нужен объём: '+code)
+  items.append({'code':code,'name':name,'capacity':cap,'sale':sale,'purchase':purchase,'kind':item_kind,'category':category})
  if not items:raise ValueError('CSV пуст или не содержит строк. Нужны колонки NAME / EXTERNAL_CODE либо Название / Код.')
  if len(items)>10000:raise ValueError('Импортируйте не более 10 000 карточек за раз')
  return items
+def parse_price_csv(d):
+ text=csv_text(d)
+ identifiers=('ID','EXTERNAL_CODE','КОД','CODE','КОД ТОВАРА','ВНЕШНИЙ КОД')
+ price_columns=('PRICE','ЦЕНА ПРОДАЖИ','ЦЕНА ПРОДАЖИ, ₽')
+ for delimiter in (';',',','	'):
+  reader=csv.reader(io.StringIO(text),delimiter=delimiter,strict=True)
+  try:
+   first=next((row for row in reader if any(cell.strip() for cell in row)),[])
+   headers=[cell.strip().upper() for cell in first]
+   if set(headers)&set(identifiers) and set(headers)&set(price_columns):
+    if len([key for key in headers if key in price_columns])!=1 or len(set(headers))!=len(headers):
+     raise ValueError('В CSV повторяются заголовки колонок')
+    rows=[(reader.line_num,row) for row in reader if any(cell.strip() for cell in row)]
+    break
+   if len(first) in (22,28,30) and first[0].strip().isdigit() and first[3].strip() and first[21].strip() in ('DEFAULT','SET','PRODUCT','BUNDLE'):
+    headers=['ID','EXTERNAL_CODE','EXTERNAL_ID','NAME','FEATURES','PRICE','BARCODE','VENDOR_CODE','NDS','PAYMENT_SUBJECT','GROUP','UNIT_CODE','PURCHASE_PRICE','WEIGHTED','ALCOHOL','GTIN','MARK_TYPE','GROUPED']
+    headers+=['']*(len(first)-len(headers))
+    rows=[(reader.line_num,first)]+[(reader.line_num,row) for row in reader if any(cell.strip() for cell in row)]
+    break
+  except csv.Error as error:
+   if delimiter in text.splitlines()[0]:raise ValueError('Проверьте кавычки в CSV') from error
+ else:
+  raise ValueError('Нужны колонки «Код» и «Цена продажи» или файл номенклатуры БИФИТ с заголовками')
+ items=[]
+ for line,row in rows:
+  if len(row)!=len(headers):raise ValueError(f'Строка {line}: количество ячеек отличается от заголовка. Дробную цену в CSV с запятыми заключите в кавычки.')
+  values=dict(zip(headers,(cell.strip() for cell in row)))
+  if values.get('GROUPED')=='1':continue
+  code=next((values.get(key) for key in identifiers[1:] if values.get(key)),None)
+  bifit=values.get('ID')
+  if not (code or bifit):raise ValueError(f'Строка {line}: укажите код или ID товара')
+  raw=next(values[key] for key in price_columns if key in values)
+  try:price=optional(re.sub(r'[\s₽]','',raw),100,'Цена продажи')
+  except ValueError as error:raise ValueError(f'Строка {line}: {error}') from error
+  raw_purchase=values.get('PURCHASE_PRICE') or values.get('ЦЕНА ЗАКУПКИ') or values.get('ЗАКУПОЧНАЯ ЦЕНА') or ''
+  try:purchase=optional(re.sub(r'[\s₽]','',raw_purchase),100,'Цена закупки')
+  except ValueError:purchase=None
+  items.append((line,code,bifit,values.get('NAME') or values.get('НАИМЕНОВАНИЕ') or values.get('НАЗВАНИЕ'),price,purchase))
+ if not items:raise ValueError('CSV не содержит товаров')
+ if len(items)>10000:raise ValueError('Импортируйте не более 10 000 товаров за раз')
+ return items
+
+def import_sale_prices(d,apply):
+ rows=parse_price_csv(d)
+ target=d.get('category')
+ with connect() as c:
+  if apply:c.execute('BEGIN IMMEDIATE')
+  profiles=product_cards_module.profiles(c)
+  products={p['id']:p for p in c.execute("SELECT id,code,name,kind,sale FROM products WHERE kind!='liquid'")
+            if not profiles.get(p['id'],{}).get('archived_from_catalog')}
+  by_code={p['code']:p for p in products.values()}
+  by_bifit={}
+  for pid,p in products.items():
+   key=profiles.get(pid,{}).get('bifit_id')
+   if key:by_bifit.setdefault(str(key),[]).append(p)
+  counts={'changed':0,'unchanged':0,'missing':0,'blank':0,'outside':0}
+  preview=[];purchases=[];seen=set()
+  for line,code,bifit,name,price,purchase in rows:
+   matches=by_bifit.get(bifit,[])
+   if len(matches)>1:raise ValueError(f'Строка {line}: этот ID БИФИТ связан с несколькими карточками')
+   p=matches[0] if matches else by_code.get(code)
+   profile=profiles.get(p['id'],{}) if p else {}
+   if matches and code and code not in (p['code'],profile.get('external_code')):
+    raise ValueError(f'Строка {line}: код и ID БИФИТ не совпадают с карточкой товара')
+   if not p:status='missing'
+   elif target and (profile.get('category') or ('Распив' if p['kind']=='decant' else KINDS[p['kind']]))!=target:status='outside'
+   else:
+    if p['id'] in seen:raise ValueError(f'Строка {line}: товар повторяется в файле')
+    seen.add(p['id'])
+    if price is None:status='blank'
+    elif price==p['sale']:status='unchanged'
+    else:status='changed'
+   counts[status]+=1
+   preview.append({'line':line,'code':p['code'] if p else code or bifit,'name':p['name'] if p else name,
+                   'previous':p['sale'] if p else None,'sale':price,'status':status,'id':p['id'] if p else None})
+   purchases.append({'purchase':purchase if purchase is not None else profile.get('purchase_price'),
+                     'purchaseFromFile':purchase is not None})
+  fingerprint=hashlib.sha256(dump(preview).encode()).hexdigest()
+  if apply:
+   if d.get('fingerprint')!=fingerprint:raise ValueError('Цены или карточки изменились. Проверьте файл ещё раз.')
+   for row in preview:
+    if row['status']=='changed':
+     c.execute('UPDATE products SET sale=? WHERE id=?',(row['sale'],row['id']))
+  return {'ok':True,'count':len(rows),**counts,'fingerprint':fingerprint,
+          'rows':[{**row,**details} for row,details in zip(preview[:50],purchases)]}
+
 def import_csv(d,apply=False):
+ if d.get('mode')=='prices':return import_sale_prices(d,apply)
  rows=parse_csv(d)
  with connect() as c:
   if apply:c.execute('BEGIN IMMEDIATE')
@@ -406,9 +516,16 @@ def import_csv(d,apply=False):
   added=sum(p['code'] not in existing for p in rows);updates=len(rows)-added
   if apply:
    for p in rows:
-    if p['code'] in existing:
-     if d.get('update_existing'):c.execute('UPDATE products SET name=?,capacity=?,sale=? WHERE code=?',(p['name'],p['capacity'],p['sale'],p['code']))
-    else:c.execute('INSERT INTO products(id,code,name,kind,capacity,sale) VALUES(?,?,?,?,?,?)',(str(uuid.uuid4()),p['code'],p['name'],p['kind'],p['capacity'],p['sale']))
+    prior=existing.get(p['code'])
+    if prior and not d.get('update_existing'):continue
+    pid=prior['id'] if prior else str(uuid.uuid4())
+    if prior:c.execute('UPDATE products SET name=?,capacity=?,sale=? WHERE id=?',(p['name'],p['capacity'],p['sale'] if p['sale'] is not None else prior['sale'],pid))
+    else:c.execute('INSERT INTO products(id,code,name,kind,capacity,sale) VALUES(?,?,?,?,?,?)',(pid,p['code'],p['name'],p['kind'],p['capacity'],p['sale']))
+    if p['category'] or p['purchase'] is not None or not prior:
+     profile={'archived_from_catalog':False} if p['category'] or not prior else {}
+     if p['category']:profile['category']=p['category']
+     if p['purchase'] is not None:profile['purchase_price']=p['purchase']
+     product_cards_module.update_catalog_profile(c,pid,profile,now())
   return {'ok':True,'count':len(rows),'new':added,'existing':updates,'rows':rows[:50]}
 def backup():
  DATA.mkdir(parents=True,exist_ok=True);folder=DATA/'backups';folder.mkdir(exist_ok=True)
@@ -450,15 +567,18 @@ def web_asset(path):
 
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
- def send(self,status,data,ctype='application/json; charset=utf-8',headers=None):
+ def send(self,status,data,ctype='application/json; charset=utf-8',headers=None,allow_frame=False):
   body=data if isinstance(data,bytes) else dump(data).encode('utf8')
-  self.send_response(status);self.send_header('Content-Type',ctype);self.send_header('Content-Length',str(len(body)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('X-Frame-Options','DENY')
+  self.send_response(status);self.send_header('Content-Type',ctype);self.send_header('Content-Length',str(len(body)));self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff')
+  if not allow_frame:self.send_header('X-Frame-Options','DENY')
   for k,v in (headers or {}).items():self.send_header(k,v)
   self.end_headers();self.wfile.write(body)
  def allowed(self):return self.headers.get('Host') in ('127.0.0.1:'+str(self.server.server_port),'localhost:'+str(self.server.server_port))
  def do_GET(self):
   if not self.allowed():return self.send(403,{'error':'Доступ только с этого компьютера'})
-  path=urlparse(self.path).path
+  parsed=urlparse(self.path);path=parsed.path
+  embedded=path in ('/','/index.html') and parse_qs(parsed.query).get('embed')==['1']
+  if path in ('/','/index.html') and not embedded:return self.send(303,b'',headers={'Location':'http://127.0.0.1:8791/overview'})
   if path=='/api/health':return self.send(200,{'app':'aroma','root':str(ROOT),'version':VERSION,'signature':SIGNATURE})
   if path=='/api/state':return self.send(200,state())
   if path=='/api/competitors/state':return self.send(200,competitors_module.state(connect))
@@ -470,7 +590,17 @@ class Handler(BaseHTTPRequestHandler):
    return self.send(200,answer)
   if path=='/api/cost/state':return self.send(200,calculator_state())
   asset=web_asset(path)
-  if asset is not None:return self.send(200,asset[0],asset[1],asset[2])
+  if asset is not None:
+   body,ctype,headers=asset
+   if embedded and ctype.startswith('text/html'):
+    css=b'<style>.erp-sider,.erp-header,.erp-footer,.mobile-nav{display:none!important}.erp-content{padding:0!important;margin:0!important;max-width:none!important;width:100%!important}</style>'
+    body=body.replace(b'</head>',css+b'</head>',1)
+    headers=dict(headers);headers['Content-Security-Policy']=headers['Content-Security-Policy'].replace("frame-ancestors 'none'","frame-ancestors http://127.0.0.1:8791")
+    return self.send(200,body,ctype,headers,allow_frame=True)
+   return self.send(200,body,ctype,headers)
+  if re.fullmatch(r'/product-photo/[^/]{1,500}',path):
+   with connect() as c:photo=c.execute('SELECT content FROM product_photos WHERE product_id=?',(unquote(path.rsplit('/',1)[1]),)).fetchone()
+   return self.send(200,photo[0],'image/jpeg') if photo else self.send(404,{'error':'Фото не найдено'})
   if path.startswith('/images/'):
    filename=path[len('/images/'):]
    if re.fullmatch(r'[a-f0-9]{24}\.(?:png|jpe?g|webp)',filename):
@@ -503,6 +633,9 @@ class Handler(BaseHTTPRequestHandler):
    if path=='/api/backup':
     p=backup();return self.send(200,p.read_bytes(),'application/octet-stream',{'Content-Disposition':'attachment; filename="'+p.name+'"'})
    if path=='/api/stop':self.send(200,{'ok':True});threading.Thread(target=self.server.shutdown,daemon=True).start();return
+   if path=='/api/product/card-options':return self.send(200,{'stock':product_cards_module.retail_stock(ROOT)})
+   if path=='/api/product/barcode':
+    with connect() as c:return self.send(200,{'barcode':product_cards_module.generate_barcode(c)})
    if path=='/api/quote':
     with connect() as c:return self.send(200,quote(c,d))
    if path in ('/api/import/preview','/api/import/apply'):return self.send(200,import_csv(d,path.endswith('/apply')))

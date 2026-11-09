@@ -1,0 +1,1 @@
+ALTER TABLE `retail_lots` ADD `owner` text;

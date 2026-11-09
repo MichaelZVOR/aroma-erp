@@ -12,3 +12,13 @@ try {
     New-Item -ItemType Directory -Path $webRoot -Force | Out-Null
     Copy-Item -Path (Join-Path $exportRoot '*') -Destination $webRoot -Recurse -Force
 } finally { Pop-Location }
+
+Push-Location (Join-Path $projectRoot 'next-retail')
+try {
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw 'Retail npm ci failed' }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw 'Retail build failed' }
+    npm run local:prepare
+    if ($LASTEXITCODE -ne 0) { throw 'Local authentication setup failed' }
+} finally { Pop-Location }
